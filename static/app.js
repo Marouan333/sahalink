@@ -1,0 +1,209 @@
+const patientId = 1;
+let currentView = "doctor";
+let alertSocket;
+let localStream;
+let peerConnection;
+let signalSocket;
+let toastTimer;
+
+const $ = (selector) => document.querySelector(selector);
+const api = async (path, options = {}) => {
+  const response = await fetch(path, { headers: { "Content-Type": "application/json", ...(options.headers || {}) }, ...options });
+  if (!response.ok) {
+    const detail = await response.json().catch(() => ({}));
+    throw new Error(detail.detail || "Une erreur est survenue.");
+  }
+  return response.status === 204 ? null : response.json();
+};
+
+function toast(message, error = false) {
+  const element = $("#toast");
+  element.textContent = message;
+  element.classList.toggle("error", error);
+  element.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => element.classList.remove("show"), 3200);
+}
+
+function formatDate(value) {
+  return new Intl.DateTimeFormat("fr-MA", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+}
+
+function showView(name) {
+  currentView = name;
+  document.querySelectorAll(".view").forEach((element) => element.classList.toggle("active", element.id === `${name}-view`));
+  document.querySelectorAll(".nav-item").forEach((element) => element.classList.toggle("active", element.dataset.view === name));
+  const labels = { doctor: ["ESPACE MEDECIN", "Bonjour, Dr. Benali"], patient: ["ESPACE PATIENT", "Mon suivi"], video: ["TELECONSULTATION", "Salle de consultation"] };
+  $("#view-kicker").textContent = labels[name][0];
+  $("#view-title").textContent = labels[name][1];
+  $(".sidebar").classList.remove("open");
+  if (name === "doctor") refreshDashboard();
+  if (name === "patient") refreshPatientHistory();
+}
+
+function vitalMarkup(vital) {
+  if (!vital) return ["--", "--", "--", "--"];
+  return [`${vital.systolic}/${vital.diastolic}`, vital.heart_rate, vital.spo2, vital.temperature];
+}
+
+function updateVitalCards(vital) {
+  const values = vitalMarkup(vital);
+  document.querySelectorAll("#doctor-vitals .vital-card strong").forEach((element, index) => element.textContent = values[index]);
+  $("#last-reading-time").textContent = vital ? formatDate(vital.recorded_at).split(" ").slice(-1)[0] : "Aucune";
+}
+
+function rowMarkup(vital, includeSource = true) {
+  return `<tr><td>${formatDate(vital.recorded_at)}</td><td>${vital.systolic}/${vital.diastolic} mmHg</td><td>${vital.heart_rate} bpm</td><td>${vital.spo2}%</td><td>${vital.temperature} deg C</td>${includeSource ? `<td>${vital.source === "simulated" ? "Simulee" : "Saisie patient"}</td>` : ""}</tr>`;
+}
+
+async function refreshHistory() {
+  const vitals = await api(`/api/patients/${patientId}/vitals`);
+  $("#doctor-history").innerHTML = vitals.length ? vitals.map((item) => rowMarkup(item)).join("") : `<tr><td colspan="6">Aucune constante enregistree.</td></tr>`;
+  $("#patient-history").innerHTML = vitals.length ? vitals.map((item) => rowMarkup(item, false)).join("") : `<tr><td colspan="5">Aucune constante enregistree.</td></tr>`;
+  updateVitalCards(vitals[0]);
+}
+
+async function refreshPatientHistory() {
+  try { await refreshHistory(); } catch (error) { toast(error.message, true); }
+}
+
+function alertMarkup(alert) {
+  const severity = alert.severity === "critical" ? "critical" : "";
+  const action = alert.status === "open" ? `<button type="button" data-alert-id="${alert.id}" class="acknowledge">Acquitter l'alerte</button>` : "Alerte acquittee";
+  return `<article class="alert-item ${severity}"><strong>${alert.patient_name}</strong><p>${alert.message}</p><small>${formatDate(alert.created_at)} · ${action}</small></article>`;
+}
+
+async function refreshAlerts() {
+  const alerts = await api("/api/alerts");
+  const open = alerts.filter((alert) => alert.status === "open");
+  $("#alert-count").textContent = open.length;
+  $("#open-alerts").textContent = open.length.toString().padStart(2, "0");
+  $("#alerts-list").innerHTML = alerts.length ? alerts.map(alertMarkup).join("") : `<p class="empty-state">Aucune alerte ouverte. Les seuils sont surveilles en continu.</p>`;
+}
+
+async function refreshDashboard() {
+  try {
+    const dashboard = await api("/api/dashboard");
+    updateVitalCards(dashboard.latest_vital);
+    $("#consent-state").textContent = dashboard.latest_consent?.accepted ? "Confirme" : "En attente";
+    await Promise.all([refreshHistory(), refreshAlerts()]);
+  } catch (error) { toast(`Chargement impossible : ${error.message}`, true); }
+}
+
+async function submitVital(event) {
+  event.preventDefault();
+  const form = new FormData(event.currentTarget);
+  const payload = Object.fromEntries(form.entries());
+  Object.keys(payload).forEach((key) => payload[key] = Number(payload[key]));
+  try {
+    const result = await api(`/api/patients/${patientId}/vitals`, { method: "POST", body: JSON.stringify(payload) });
+    const feedback = result.alert ? `Mesure enregistree. Alerte transmise : ${result.alert.message}.` : "Mesure enregistree et transmise au medecin.";
+    $("#vital-feedback").textContent = feedback;
+    toast(result.alert ? "Alerte clinique envoyee." : "Constantes envoyees.", Boolean(result.alert));
+    await refreshDashboard();
+  } catch (error) { $("#vital-feedback").textContent = error.message; toast(error.message, true); }
+}
+
+async function submitConsent(event) {
+  event.preventDefault();
+  try {
+    await api(`/api/patients/${patientId}/consents`, { method: "POST", body: JSON.stringify({ accepted: $("#consent-check").checked, purpose: "Teleconsultation pedagogique et suivi des constantes simulees." }) });
+    $("#consent-badge").textContent = "Confirme";
+    $("#consent-badge").className = "tag";
+    $("#consent-feedback").textContent = "Votre consentement a ete enregistre avec horodatage.";
+    toast("Consentement enregistre.");
+    refreshDashboard();
+  } catch (error) { $("#consent-feedback").textContent = error.message; toast(error.message, true); }
+}
+
+async function acknowledgeAlert(id) {
+  try { await api(`/api/alerts/${id}/acknowledge`, { method: "PATCH" }); toast("Alerte acquittee."); refreshAlerts(); } catch (error) { toast(error.message, true); }
+}
+
+function connectAlertSocket() {
+  const protocol = location.protocol === "https:" ? "wss" : "ws";
+  alertSocket = new WebSocket(`${protocol}://${location.host}/ws/alerts`);
+  alertSocket.onmessage = (event) => {
+    const payload = JSON.parse(event.data);
+    if (payload.type === "alert") { toast(`Nouvelle alerte : ${payload.alert.message}`, true); refreshDashboard(); }
+  };
+  alertSocket.onclose = () => setTimeout(connectAlertSocket, 2500);
+}
+
+async function activateVideo() {
+  const room = $("#room-name").value.trim();
+  if (!room) { toast("Saisissez un code de consultation.", true); return; }
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    $("#local-video").srcObject = localStream;
+    $("#video-status").textContent = "Camera active. Connexion a la salle en cours.";
+    const protocol = location.protocol === "https:" ? "wss" : "ws";
+    signalSocket = new WebSocket(`${protocol}://${location.host}/ws/signaling/${encodeURIComponent(room)}`);
+    signalSocket.onopen = setupPeerConnection;
+    signalSocket.onmessage = handleSignal;
+    signalSocket.onclose = () => { if (localStream) $("#video-status").textContent = "Signalisation deconnectee."; };
+  } catch (error) { $("#video-status").textContent = "Camera ou microphone indisponible. Autorisez-les puis reessayez."; toast("Impossible d'acceder a la camera.", true); }
+}
+
+async function setupPeerConnection() {
+  peerConnection?.close();
+  peerConnection = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+  localStream.getTracks().forEach((track) => peerConnection.addTrack(track, localStream));
+  peerConnection.ontrack = (event) => { $("#remote-video").srcObject = event.streams[0]; $("#remote-placeholder").hidden = true; $("#video-status").textContent = "Consultation connectee."; };
+  peerConnection.onicecandidate = (event) => { if (event.candidate && signalSocket?.readyState === WebSocket.OPEN) signalSocket.send(JSON.stringify({ type: "candidate", candidate: event.candidate })); };
+  const offer = await peerConnection.createOffer();
+  await peerConnection.setLocalDescription(offer);
+  signalSocket.send(JSON.stringify({ type: "offer", sdp: offer }));
+}
+
+async function handleSignal(event) {
+  const message = JSON.parse(event.data);
+  if (!peerConnection || !message.type) return;
+  if (message.type === "offer") {
+    await peerConnection.setRemoteDescription(new RTCSessionDescription(message.sdp));
+    const answer = await peerConnection.createAnswer();
+    await peerConnection.setLocalDescription(answer);
+    signalSocket.send(JSON.stringify({ type: "answer", sdp: answer }));
+  }
+  if (message.type === "answer") await peerConnection.setRemoteDescription(new RTCSessionDescription(message.sdp));
+  if (message.type === "candidate") await peerConnection.addIceCandidate(new RTCIceCandidate(message.candidate));
+}
+
+function endCall() {
+  peerConnection?.close(); peerConnection = null;
+  signalSocket?.close(); signalSocket = null;
+  localStream?.getTracks().forEach((track) => track.stop()); localStream = null;
+  $("#local-video").srcObject = null; $("#remote-video").srcObject = null; $("#remote-placeholder").hidden = false;
+  $("#video-status").textContent = "Consultation terminee. Camera inactive.";
+}
+
+function toggleTrack(kind, button, activeText, mutedText) {
+  const track = localStream?.getTracks().find((item) => item.kind === kind);
+  if (!track) { toast("Activez d'abord la camera.", true); return; }
+  track.enabled = !track.enabled;
+  button.textContent = track.enabled ? activeText : mutedText;
+  button.setAttribute("aria-pressed", String(!track.enabled));
+}
+
+function wireInteractions() {
+  document.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => showView(button.dataset.view)));
+  document.querySelectorAll("[data-view-target]").forEach((button) => button.addEventListener("click", () => showView(button.dataset.viewTarget)));
+  $("#open-video-doctor").addEventListener("click", () => showView("video"));
+  $("#open-video-patient").addEventListener("click", () => showView("video"));
+  $("#alert-focus").addEventListener("click", () => { showView("doctor"); $("#alerts-panel").scrollIntoView({ behavior: "smooth", block: "center" }); });
+  $("#vital-form").addEventListener("submit", submitVital);
+  $("#consent-form").addEventListener("submit", submitConsent);
+  $("#simulate-critical").addEventListener("click", () => { const form = $("#vital-form"); form.querySelector('[name="systolic"]').value = 188; form.querySelector('[name="diastolic"]').value = 122; form.querySelector('[name="heart_rate"]').value = 138; form.querySelector('[name="spo2"]').value = 89; form.querySelector('[name="temperature"]').value = 39.2; toast("Valeurs de cas degrade pre-remplies. Envoyez-les pour tester l'alerte."); });
+  $("#alerts-list").addEventListener("click", (event) => { const target = event.target.closest(".acknowledge"); if (target) acknowledgeAlert(target.dataset.alertId); });
+  $("#start-call").addEventListener("click", activateVideo);
+  $("#end-call").addEventListener("click", endCall);
+  $("#toggle-mic").addEventListener("click", (event) => toggleTrack("audio", event.currentTarget, "Micro actif", "Micro coupe"));
+  $("#toggle-camera").addEventListener("click", (event) => toggleTrack("video", event.currentTarget, "Camera active", "Camera coupee"));
+  $(".mobile-menu").addEventListener("click", () => $(".sidebar").classList.toggle("open"));
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  $("#today-label").textContent = new Intl.DateTimeFormat("fr-MA", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(new Date());
+  wireInteractions(); connectAlertSocket(); refreshDashboard();
+});
+

@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.venv/
+telecare.db
+.pytest_cache/
+coverage.xml
+artifacts/
+server.out.log
+server.err.log
+.server.pid
+.playwright-mcp/
+
