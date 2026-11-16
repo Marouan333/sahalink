@@ -5,11 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="SahaLink, prototype de teleconsultation et de suivi a distance avec donnees simulees." />
     <title>SahaLink | Teleconsultation securisee</title>
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231769e0'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-family='Arial' font-weight='700' font-size='18' fill='white'%3ES%3C/text%3E%3C/svg%3E" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%234f46e5'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-family='Arial' font-weight='700' font-size='18' fill='white'%3ES%3C/text%3E%3C/svg%3E" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/static/styles.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/static/styles.css?v=2" />
   </head>
   <body>
     <div class="app-shell">
@@ -17,27 +17,41 @@
         <a class="brand" href="#dashboard" aria-label="SahaLink accueil">
           <span class="brand-mark" aria-hidden="true">S</span><span>Saha<span>Link</span></span>
         </a>
-        <p class="workspace-label">ESPACE DE DEMONSTRATION</p>
+        <p class="workspace-label">Espace de demonstration</p>
         <nav class="main-nav">
-          <button class="nav-item active" data-view="doctor" type="button"><span aria-hidden="true">Tableau de bord</span><small>Docteur</small></button>
-          <button class="nav-item" data-view="patient" type="button"><span aria-hidden="true">Mon suivi</span><small>Patient</small></button>
-          <button class="nav-item" data-view="video" type="button"><span aria-hidden="true">Teleconsultation</span><small>WebRTC</small></button>
+          <button class="nav-item active" data-view="doctor" type="button">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="3" width="7" height="7" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect><rect x="14" y="14" width="7" height="7" rx="1.5"></rect></svg>
+            <span>Tableau de bord</span>
+          </button>
+          <button class="nav-item" data-view="patient" type="button">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.5"></circle><path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6"></path></svg>
+            <span>Mon suivi</span>
+          </button>
+          <button class="nav-item" data-view="video" type="button">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6" width="13" height="12" rx="2"></rect><path d="M15.5 10.5 21 7v10l-5.5-3.5Z"></path></svg>
+            <span>Teleconsultation</span>
+          </button>
         </nav>
         <div class="sidebar-bottom">
-          <div class="demo-note"><span class="status-dot"></span><span>Donnees simulees uniquement</span></div>
+          <div class="demo-note"><span class="status-dot" aria-hidden="true"></span><span>Donnees simulees uniquement</span></div>
           <p>Prototype pedagogique<br />ENSAM Rabat 2026/2027</p>
         </div>
       </aside>
 
       <main class="main-content">
         <header class="topbar">
-          <button class="mobile-menu" type="button" aria-label="Ouvrir la navigation">Menu</button>
+          <button class="mobile-menu" type="button" aria-label="Ouvrir la navigation">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"></path><path d="M4 12h16"></path><path d="M4 17h16"></path></svg>
+          </button>
           <div>
-            <p class="eyebrow" id="view-kicker">ESPACE MEDECIN</p>
+            <p class="eyebrow" id="view-kicker">Espace medecin</p>
             <h1 id="view-title">Bonjour, Dr. Benali</h1>
           </div>
           <div class="topbar-actions">
-            <button class="notification-button" type="button" id="alert-focus" aria-label="Voir les alertes"><span aria-hidden="true">Alertes</span><b id="alert-count">0</b></button>
+            <button class="notification-button" type="button" id="alert-focus" aria-label="Voir les alertes">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 10a6 6 0 1 1 12 0c0 3.2 1 4.8 1.6 5.6a.8.8 0 0 1-.6 1.4H5a.8.8 0 0 1-.6-1.4C5 14.8 6 13.2 6 10Z"></path><path d="M10 19a2 2 0 0 0 4 0"></path></svg>
+              <span aria-hidden="true">Alertes</span><b id="alert-count">0</b>
+            </button>
             <div class="avatar" aria-label="Profil Docteur Benali">DB</div>
           </div>
         </header>
@@ -45,49 +59,159 @@
         <section id="doctor-view" class="view active" aria-labelledby="view-title">
           <div class="welcome-row">
             <div><p class="lede">Vue clinique temps reel pour le suivi a distance.</p><p class="date-label" id="today-label"></p></div>
-            <button class="primary-button" id="open-video-doctor" type="button">Demarrer une consultation</button>
+            <button class="primary-button" id="open-video-doctor" type="button">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6" width="13" height="12" rx="2"></rect><path d="M15.5 10.5 21 7v10l-5.5-3.5Z"></path></svg>
+              Demarrer une consultation
+            </button>
           </div>
 
           <div class="metric-grid" aria-label="Indicateurs de suivi">
-            <article class="metric-card"><p>Patients suivis</p><strong>01</strong><span class="metric-note positive">Suivi actif</span></article>
-            <article class="metric-card"><p>Alertes ouvertes</p><strong id="open-alerts">0</strong><span class="metric-note warning">A verifier aujourd'hui</span></article>
-            <article class="metric-card"><p>Derniere mesure</p><strong id="last-reading-time">Aucune</strong><span class="metric-note">Patient Amal El Idrissi</span></article>
-            <article class="metric-card"><p>Consentement</p><strong id="consent-state">En attente</strong><span class="metric-note">Teleconsultation et suivi</span></article>
+            <article class="metric-card">
+              <div class="metric-icon" data-tone="neutral" aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"></circle><path d="M3.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5"></path><path d="M16 8.2a2.6 2.6 0 1 1 2 4.4"></path><path d="M15 14.2c2.2.4 3.8 2 3.8 4.3"></path></svg></div>
+              <p>Patients suivis</p><strong>01</strong><span class="metric-note positive">Suivi actif</span>
+            </article>
+            <article class="metric-card">
+              <div class="metric-icon" data-tone="warning" aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 2.5 20h19L12 4Z"></path><path d="M12 10.5v4"></path><path d="M12 17.2h.01"></path></svg></div>
+              <p>Alertes ouvertes</p><strong id="open-alerts">0</strong><span class="metric-note warning">A verifier aujourd'hui</span>
+            </article>
+            <article class="metric-card">
+              <div class="metric-icon" data-tone="neutral" aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 7.5V12l3 2"></path></svg></div>
+              <p>Derniere mesure</p><strong id="last-reading-time">Aucune</strong><span class="metric-note">Patient Amal El Idrissi</span>
+            </article>
+            <article class="metric-card">
+              <div class="metric-icon" data-tone="success" aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3.5h7l3.5 3.5V20a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1Z"></path><path d="M14 3.5V7h3.5"></path><path d="M8.5 13.5 10.5 15.5 15 11"></path></svg></div>
+              <p>Consentement</p><strong id="consent-state">En attente</strong><span class="metric-note">Teleconsultation et suivi</span>
+            </article>
           </div>
 
           <div class="content-grid">
             <article class="panel patient-summary">
-              <div class="panel-header"><div><p class="eyebrow">PATIENT SELECTIONNE</p><h2>Amal El Idrissi</h2></div><span class="tag">Suivi HTA</span></div>
-              <div class="patient-meta"><div class="patient-avatar">AE</div><div><strong>54 ans</strong><p>Suivi hypertension arterielle</p></div><button class="text-button" data-view-target="patient" type="button">Voir le dossier</button></div>
-              <div class="vital-cards" id="doctor-vitals"><div class="vital-card"><span>Tension</span><strong>--</strong><small>mmHg</small></div><div class="vital-card"><span>Frequence</span><strong>--</strong><small>bpm</small></div><div class="vital-card"><span>SpO2</span><strong>--</strong><small>%</small></div><div class="vital-card"><span>Temperature</span><strong>--</strong><small>deg C</small></div></div>
+              <div class="panel-header"><div><p class="eyebrow">Patient selectionne</p><h2>Amal El Idrissi</h2></div><span class="tag">Suivi HTA</span></div>
+              <div class="patient-meta">
+                <div class="patient-avatar">AE</div>
+                <div><strong>54 ans</strong><p>Suivi hypertension arterielle</p></div>
+                <button class="text-button" data-view-target="patient" type="button">
+                  Voir le dossier
+                  <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h13"></path><path d="M13 6l6 6-6 6"></path></svg>
+                </button>
+              </div>
+              <div class="vital-cards" id="doctor-vitals">
+                <div class="vital-card"><span>Tension</span><strong>--</strong><small>mmHg</small></div>
+                <div class="vital-card"><span>Frequence</span><strong>--</strong><small>bpm</small></div>
+                <div class="vital-card"><span>SpO2</span><strong>--</strong><small>%</small></div>
+                <div class="vital-card"><span>Temperature</span><strong>--</strong><small>deg C</small></div>
+              </div>
             </article>
 
             <article class="panel alert-panel" id="alerts-panel">
-              <div class="panel-header"><div><p class="eyebrow">SURVEILLANCE</p><h2>Alertes cliniques</h2></div><span class="live-pill"><i></i> Direct</span></div>
+              <div class="panel-header"><div><p class="eyebrow">Surveillance</p><h2>Alertes cliniques</h2></div><span class="live-pill"><i></i> Direct</span></div>
               <div id="alerts-list" class="alerts-list"><p class="empty-state">Aucune alerte ouverte. Les seuils sont surveilles en continu.</p></div>
             </article>
           </div>
 
-          <article class="panel history-panel"><div class="panel-header"><div><p class="eyebrow">EVOLUTION</p><h2>Dernieres constantes</h2></div><button class="text-button" data-view-target="patient" type="button">Saisir une mesure</button></div><div class="table-wrap"><table><thead><tr><th>Date et heure</th><th>Tension</th><th>Frequence</th><th>SpO2</th><th>Temperature</th><th>Source</th></tr></thead><tbody id="doctor-history"></tbody></table></div></article>
+          <article class="panel history-panel">
+            <div class="panel-header">
+              <div><p class="eyebrow">Evolution</p><h2>Dernieres constantes</h2></div>
+              <button class="text-button" data-view-target="patient" type="button">
+                Saisir une mesure
+                <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h13"></path><path d="M13 6l6 6-6 6"></path></svg>
+              </button>
+            </div>
+            <div class="table-wrap"><table><thead><tr><th>Date et heure</th><th>Tension</th><th>Frequence</th><th>SpO2</th><th>Temperature</th><th>Source</th></tr></thead><tbody id="doctor-history"></tbody></table></div>
+          </article>
         </section>
 
         <section id="patient-view" class="view" aria-labelledby="patient-heading">
-          <div class="welcome-row"><div><p class="eyebrow">ESPACE PATIENT</p><h2 id="patient-heading">Bonjour Amal</h2><p class="lede">Saisissez vos constantes et preparez votre teleconsultation.</p></div><button class="secondary-button" id="open-video-patient" type="button">Rejoindre la consultation</button></div>
-          <div class="patient-layout">
-            <article class="panel consent-panel"><div class="panel-header"><div><p class="eyebrow">CONFIDENTIALITE</p><h2>Votre consentement</h2></div><span id="consent-badge" class="tag neutral">A confirmer</span></div><p>J'accepte la teleconsultation et le traitement de mes donnees de sante simulees dans le seul cadre de cette demonstration pedagogique.</p><form id="consent-form"><label class="check-label"><input id="consent-check" type="checkbox" required /><span>J'ai lu et j'accepte ce consentement eclaire.</span></label><button class="primary-button" type="submit">Enregistrer mon accord</button></form><p id="consent-feedback" class="form-feedback" role="status"></p></article>
-            <article class="panel reading-panel"><div class="panel-header"><div><p class="eyebrow">AUTO-MESURE</p><h2>Ajouter mes constantes</h2></div><span class="tag">Aujourd'hui</span></div><form id="vital-form" class="vital-form"><label>Tension systolique<input name="systolic" type="number" min="70" max="250" value="128" required /><small>mmHg</small></label><label>Tension diastolique<input name="diastolic" type="number" min="40" max="160" value="78" required /><small>mmHg</small></label><label>Frequence cardiaque<input name="heart_rate" type="number" min="30" max="220" value="72" required /><small>bpm</small></label><label>Saturation en oxygene<input name="spo2" type="number" min="70" max="100" value="98" required /><small>%</small></label><label>Temperature<input name="temperature" type="number" min="32" max="43" step="0.1" value="36.7" required /><small>deg C</small></label><div class="form-actions"><button class="primary-button" type="submit">Envoyer mes constantes</button><button class="secondary-button" type="button" id="simulate-critical">Simuler une alerte</button></div></form><p id="vital-feedback" class="form-feedback" role="status"></p></article>
+          <div class="welcome-row">
+            <div><p class="eyebrow">Espace patient</p><h2 id="patient-heading">Bonjour Amal</h2><p class="lede">Saisissez vos constantes et preparez votre teleconsultation.</p></div>
+            <button class="secondary-button" id="open-video-patient" type="button">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6" width="13" height="12" rx="2"></rect><path d="M15.5 10.5 21 7v10l-5.5-3.5Z"></path></svg>
+              Rejoindre la consultation
+            </button>
           </div>
-          <article class="panel"><div class="panel-header"><div><p class="eyebrow">HISTORIQUE PERSONNEL</p><h2>Mes dernieres mesures</h2></div></div><div class="table-wrap"><table><thead><tr><th>Date et heure</th><th>Tension</th><th>Frequence</th><th>SpO2</th><th>Temperature</th></tr></thead><tbody id="patient-history"></tbody></table></div></article>
+          <div class="patient-layout">
+            <article class="panel consent-panel">
+              <div class="panel-header"><div><p class="eyebrow">Confidentialite</p><h2>Votre consentement</h2></div><span id="consent-badge" class="tag neutral">A confirmer</span></div>
+              <p>J'accepte la teleconsultation et le traitement de mes donnees de sante simulees dans le seul cadre de cette demonstration pedagogique.</p>
+              <form id="consent-form">
+                <label class="check-label"><input id="consent-check" type="checkbox" required /><span>J'ai lu et j'accepte ce consentement eclaire.</span></label>
+                <button class="primary-button" type="submit">Enregistrer mon accord</button>
+              </form>
+              <p id="consent-feedback" class="form-feedback" role="status"></p>
+            </article>
+            <article class="panel reading-panel">
+              <div class="panel-header"><div><p class="eyebrow">Auto-mesure</p><h2>Ajouter mes constantes</h2></div><span class="tag">Aujourd'hui</span></div>
+              <form id="vital-form" class="vital-form">
+                <label>Tension systolique<input name="systolic" type="number" min="70" max="250" value="128" required /><small>mmHg</small></label>
+                <label>Tension diastolique<input name="diastolic" type="number" min="40" max="160" value="78" required /><small>mmHg</small></label>
+                <label>Frequence cardiaque<input name="heart_rate" type="number" min="30" max="220" value="72" required /><small>bpm</small></label>
+                <label>Saturation en oxygene<input name="spo2" type="number" min="70" max="100" value="98" required /><small>%</small></label>
+                <label>Temperature<input name="temperature" type="number" min="32" max="43" step="0.1" value="36.7" required /><small>deg C</small></label>
+                <div class="form-actions">
+                  <button class="primary-button" type="submit">Envoyer mes constantes</button>
+                  <button class="secondary-button" type="button" id="simulate-critical">Simuler une alerte</button>
+                </div>
+              </form>
+              <p id="vital-feedback" class="form-feedback" role="status"></p>
+            </article>
+          </div>
+          <article class="panel">
+            <div class="panel-header"><div><p class="eyebrow">Historique personnel</p><h2>Mes dernieres mesures</h2></div></div>
+            <div class="table-wrap"><table><thead><tr><th>Date et heure</th><th>Tension</th><th>Frequence</th><th>SpO2</th><th>Temperature</th></tr></thead><tbody id="patient-history"></tbody></table></div>
+          </article>
         </section>
 
         <section id="video-view" class="view" aria-labelledby="video-heading">
-          <div class="welcome-row"><div><p class="eyebrow">CONSULTATION SECURISEE</p><h2 id="video-heading">Salle de teleconsultation</h2><p class="lede">Connexion peer-to-peer WebRTC. Le serveur relaie uniquement la signalisation.</p></div><span class="live-pill"><i></i> WebRTC</span></div>
-          <div class="video-layout"><article class="video-stage"><video id="remote-video" autoplay playsinline aria-label="Flux video du correspondant"></video><div class="remote-placeholder" id="remote-placeholder"><strong>Votre correspondant apparaitra ici</strong><span>Ouvrez la meme salle dans un second navigateur.</span></div><div class="self-video"><video id="local-video" autoplay muted playsinline aria-label="Votre apercu video"></video></div><div class="video-controls"><button id="toggle-mic" type="button" aria-pressed="false">Micro actif</button><button id="toggle-camera" type="button" aria-pressed="false">Camera active</button><button id="end-call" class="danger-button" type="button">Terminer</button></div></article><aside class="panel video-settings"><p class="eyebrow">CONFIGURATION</p><h3>Rejoindre une salle</h3><label for="room-name">Code de consultation</label><input id="room-name" value="amal-suivi" maxlength="40" /><p>Partagez ce code avec le patient ou le medecin sur le meme reseau de demonstration.</p><button id="start-call" class="primary-button" type="button">Activer camera et rejoindre</button><p id="video-status" class="form-feedback" role="status">Camera inactive.</p><div class="security-list"><strong>Protection appliquee</strong><span>Transport DTLS/SRTP par WebRTC</span><span>Aucun flux video stocke</span><span>Signalisation en salle isolee</span></div></aside></div>
+          <div class="welcome-row">
+            <div><p class="eyebrow">Consultation securisee</p><h2 id="video-heading">Salle de teleconsultation</h2><p class="lede">Connexion peer-to-peer WebRTC. Le serveur relaie uniquement la signalisation.</p></div>
+            <span class="live-pill"><i></i> WebRTC</span>
+          </div>
+          <div class="video-layout">
+            <article class="video-stage">
+              <video id="remote-video" autoplay playsinline aria-label="Flux video du correspondant"></video>
+              <div class="remote-placeholder" id="remote-placeholder"><strong>Votre correspondant apparaitra ici</strong><span>Ouvrez la meme salle dans un second navigateur.</span></div>
+              <div class="self-video"><video id="local-video" autoplay muted playsinline aria-label="Votre apercu video"></video></div>
+              <div class="video-controls">
+                <button id="toggle-mic" type="button" aria-pressed="false">
+                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5.5 11a6.5 6.5 0 0 0 13 0"></path><path d="M12 17.5V21"></path><path d="M8.5 21h7"></path></svg>
+                  <span>Micro actif</span>
+                </button>
+                <button id="toggle-camera" type="button" aria-pressed="false">
+                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6.5" width="13" height="11" rx="2"></rect><path d="M16 10.3 21 7v10l-5-3.3Z"></path></svg>
+                  <span>Camera active</span>
+                </button>
+                <button id="end-call" class="danger-button" type="button">
+                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5c1-1 2.3-1.5 3.6-1.2l1.6 3.8c.2.5 0 1-.4 1.3l-1.3 1c.9 2 2.5 3.6 4.5 4.5l1-1.3c.3-.4.8-.6 1.3-.4l3.8 1.6c.3 1.3-.2 2.6-1.2 3.6-1 1-2.6 1.4-4.6.8-3.4-1-6.7-4.3-7.7-7.7-.6-2-.2-3.6.8-4.6Z"></path><path d="M3 3l18 18"></path></svg>
+                  <span>Terminer</span>
+                </button>
+              </div>
+            </article>
+            <aside class="panel video-settings">
+              <p class="eyebrow">Configuration</p>
+              <h3>Rejoindre une salle</h3>
+              <label for="room-name">Code de consultation</label>
+              <input id="room-name" value="amal-suivi" maxlength="40" />
+              <p>Partagez ce code avec le patient ou le medecin sur le meme reseau de demonstration.</p>
+              <button id="start-call" class="primary-button" type="button">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6.5" width="13" height="11" rx="2"></rect><path d="M16 10.3 21 7v10l-5-3.3Z"></path></svg>
+                Activer camera et rejoindre
+              </button>
+              <p id="video-status" class="form-feedback" role="status">Camera inactive.</p>
+              <div class="security-list">
+                <strong>
+                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10.5" width="14" height="9" rx="2"></rect><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"></path></svg>
+                  Protection appliquee
+                </strong>
+                <span>Transport DTLS/SRTP par WebRTC</span>
+                <span>Aucun flux video stocke</span>
+                <span>Signalisation en salle isolee</span>
+              </div>
+            </aside>
+          </div>
         </section>
       </main>
     </div>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
-    <script src="/static/app.js"></script>
+    <script src="/static/app.js?v=2"></script>
   </body>
 </html>
-

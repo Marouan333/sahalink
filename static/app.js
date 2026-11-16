@@ -181,8 +181,11 @@ function toggleTrack(kind, button, activeText, mutedText) {
   const track = localStream?.getTracks().find((item) => item.kind === kind);
   if (!track) { toast("Activez d'abord la camera.", true); return; }
   track.enabled = !track.enabled;
-  button.textContent = track.enabled ? activeText : mutedText;
+  const label = button.querySelector("span");
+  if (label) label.textContent = track.enabled ? activeText : mutedText;
+  else button.textContent = track.enabled ? activeText : mutedText;
   button.setAttribute("aria-pressed", String(!track.enabled));
+  button.classList.toggle("is-muted", !track.enabled);
 }
 
 function wireInteractions() {
