@@ -6,6 +6,10 @@ let peerConnection;
 let signalSocket;
 let toastTimer;
 
+const ICON_ALERT_TRIANGLE = '<svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4 2.5 20h19L12 4Z"></path><path d="M12 10.5v4"></path><path d="M12 17.2h.01"></path></svg>';
+const ICON_CHECK_CIRCLE = '<svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"></circle><path d="M8.5 12.3 11 14.8 15.5 9.5"></path></svg>';
+const ICON_CLOCK_SM = '<svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 7.5V12l3 2"></path></svg>';
+
 const $ = (selector) => document.querySelector(selector);
 const api = async (path, options = {}) => {
   const response = await fetch(path, { headers: { "Content-Type": "application/json", ...(options.headers || {}) }, ...options });
@@ -53,7 +57,10 @@ function updateVitalCards(vital) {
 }
 
 function rowMarkup(vital, includeSource = true) {
-  return `<tr><td>${formatDate(vital.recorded_at)}</td><td>${vital.systolic}/${vital.diastolic} mmHg</td><td>${vital.heart_rate} bpm</td><td>${vital.spo2}%</td><td>${vital.temperature} deg C</td>${includeSource ? `<td>${vital.source === "simulated" ? "Simulee" : "Saisie patient"}</td>` : ""}</tr>`;
+  const sourceCell = includeSource
+    ? `<td><span class="source-pill ${vital.source}">${vital.source === "simulated" ? "Simulee" : "Saisie patient"}</span></td>`
+    : "";
+  return `<tr><td>${formatDate(vital.recorded_at)}</td><td>${vital.systolic}/${vital.diastolic} mmHg</td><td>${vital.heart_rate} bpm</td><td>${vital.spo2}%</td><td>${vital.temperature} deg C</td>${sourceCell}</tr>`;
 }
 
 async function refreshHistory() {
@@ -69,8 +76,21 @@ async function refreshPatientHistory() {
 
 function alertMarkup(alert) {
   const severity = alert.severity === "critical" ? "critical" : "";
-  const action = alert.status === "open" ? `<button type="button" data-alert-id="${alert.id}" class="acknowledge">Acquitter l'alerte</button>` : "Alerte acquittee";
-  return `<article class="alert-item ${severity}"><strong>${alert.patient_name}</strong><p>${alert.message}</p><small>${formatDate(alert.created_at)} · ${action}</small></article>`;
+  const action = alert.status === "open"
+    ? `<button type="button" data-alert-id="${alert.id}" class="acknowledge">${ICON_CHECK_CIRCLE}<span>Acquitter l'alerte</span></button>`
+    : `<span class="alert-done">${ICON_CHECK_CIRCLE}<span>Alerte acquittee</span></span>`;
+  return `<article class="alert-item ${severity}">
+    <div class="alert-item-head">
+      <span class="alert-icon" aria-hidden="true">${ICON_ALERT_TRIANGLE}</span>
+      <strong>${alert.patient_name}</strong>
+      <span class="severity-pill">${alert.severity === "critical" ? "Critique" : "A surveiller"}</span>
+    </div>
+    <p>${alert.message}</p>
+    <div class="alert-item-foot">
+      <span class="alert-time">${ICON_CLOCK_SM}<span>${formatDate(alert.created_at)}</span></span>
+      ${action}
+    </div>
+  </article>`;
 }
 
 async function refreshAlerts() {
