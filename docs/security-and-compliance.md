@@ -3,9 +3,13 @@
 ## Mesures effectivement implementees dans le prototype
 
 - Donnees strictement fictives et locales.
-- Consentement explicite, accepte ou refuse, avec objet et horodatage.
+- Authentification par identifiant et mot de passe ; les mots de passe sont stockes haches (PBKDF2-SHA256, 200 000 iterations, sel aleatoire par compte) et compares en temps constant.
+- Sessions serveur de 8 heures : le jeton aleatoire n'est conserve en base que sous forme d'empreinte SHA-256, et la deconnexion le revoque immediatement.
+- Controle d'acces par role sur chaque route : le patient n'accede qu'a son propre dossier, seul le medecin consulte et acquitte les alertes, seul le patient concerne donne ou retire son consentement.
+- Consentement explicite, accepte ou refuse, avec objet et horodatage ; une teleconsultation ne peut pas demarrer sans consentement valide du patient (refus HTTP 409).
+- WebSockets authentifies : le jeton est transmis dans le premier message, jamais dans l'URL, et l'origine de la page est verifiee pour bloquer le detournement de WebSocket depuis un autre site.
+- Salle video reservee : seul le medecin et le patient de la consultation ouverte peuvent y entrer, deux participants au maximum ; le code de salle est aleatoire et genere par le serveur.
 - Validation serveur des valeurs de constantes.
-- Separation des canaux REST, alertes et signalisation video.
 - WebRTC chiffre les medias entre pairs avec DTLS/SRTP lorsque le navigateur etablit la connexion.
 - Aucune video n'est enregistree par l'application.
 - Les alertes peuvent etre acquittees pour demonstrer le suivi organisationnel.
@@ -14,7 +18,9 @@
 
 Ce prototype n'est pas un dispositif medical ni une plateforme prete a recevoir des donnees reelles. Avant tout usage reel, il faut au minimum :
 
-- une authentification forte, une gestion des roles et un journal d'audit inviolable ;
+- une authentification multifacteur, un verrouillage apres echecs repetes et un journal d'audit inviolable des acces ;
+- un jeton de session en cookie `HttpOnly` et `Secure` plutot que dans le stockage de l'onglet : le prototype garde le jeton par onglet pour permettre de demontrer le medecin et le patient dans un meme navigateur, au prix d'une exposition plus forte en cas de faille XSS ;
+- des comptes reels geres par l'etablissement, a la place des deux comptes de demonstration dont le mot de passe est public ;
 - HTTPS, chiffrement des donnees au repos, rotation des secrets et sauvegardes ;
 - une analyse d'impact, des politiques de conservation et l'exercice des droits des personnes ;
 - une validation clinique des seuils et une gouvernance medicale ;

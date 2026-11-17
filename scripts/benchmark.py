@@ -15,13 +15,21 @@ os.environ["SAHALINK_DB_PATH"] = str(Path(tempfile.gettempdir()) / "sahalink-ben
 
 from fastapi.testclient import TestClient
 
-from app.database import DATABASE_PATH
+from app.database import DATABASE_PATH, DEMO_PASSWORD
 from app.main import app
 
 Path(DATABASE_PATH).unlink(missing_ok=True)
 client = TestClient(app)
 
+
+def bearer(username):
+    token = client.post("/api/auth/login", json={"username": username, "password": DEMO_PASSWORD}).json()["token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
 with client:
+    client.headers.update(bearer("amal"))
+    doctor_headers = bearer("dr.benali")
     normal_latencies = []
     for _ in range(30):
         payload = {
@@ -71,7 +79,7 @@ with client:
             json={"systolic": 190, "diastolic": 121, "heart_rate": 80, "spo2": 98, "temperature": 36.7, "source": "simulated"},
         ).json()
         t0 = time.perf_counter()
-        ack = client.patch(f"/api/alerts/{created['alert']['id']}/acknowledge")
+        ack = client.patch(f"/api/alerts/{created['alert']['id']}/acknowledge", headers=doctor_headers)
         t1 = time.perf_counter()
         assert ack.status_code == 200
         ack_latencies.append((t1 - t0) * 1000)

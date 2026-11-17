@@ -4,8 +4,9 @@ Prototype demonstrable for the ENSAM course *Sante digitale et ingenierie des sy
 
 ## Features
 
-- Patient and doctor workspaces in one local demonstration interface
-- Consent capture with a timestamp and explicit purpose
+- Login with role-based access: the doctor and the patient each see only their own workspace, and the API enforces the same rules
+- Consent capture with a timestamp and explicit purpose; a teleconsultation cannot start without it
+- Doctor-initiated teleconsultation: the patient receives a live invitation and joins with one click
 - Entry and longitudinal display of simulated vital signs
 - Configurable clinical alert rules for blood pressure, heart rate, oxygen saturation, and temperature
 - Real-time alert delivery with WebSockets
@@ -23,27 +24,33 @@ uvicorn app.main:app --reload
 
 Open <http://127.0.0.1:8000>. The API documentation is available at <http://127.0.0.1:8000/docs>.
 
-## Demonstration scenario
+## Demo accounts
 
-1. In the patient area, read and accept consent.
-2. Add a normal reading, then a critical reading such as SpO2 89%.
-3. Switch to the doctor area to see the alert and updated clinical history.
-4. Open a second browser window, choose the same video room, and start/join the WebRTC consultation.
+Both accounts are fictitious and seeded automatically on first start. The login page has a "Utiliser" shortcut for each.
 
-## Testing the video call
+| Role | Username | Password |
+|---|---|---|
+| Doctor | `dr.benali` | `Demo-2026!` |
+| Patient | `amal` | `Demo-2026!` |
 
-The WebRTC video room needs a real browser with camera and microphone access, so it cannot be exercised inside an automated or sandboxed tool. To test it yourself:
+## Testing the full workflow
+
+Each browser tab keeps its own session, so the doctor and the patient can be logged in side by side in two tabs or windows of the same browser. The video call needs a real camera and microphone, so run it in a normal browser rather than an automated or sandboxed one.
 
 1. Start the server (see Quick start above) and keep it running.
-2. Open two separate browser windows pointed at <http://127.0.0.1:8000> (two different browser profiles, or a normal window plus a private/incognito window, avoids any camera-sharing conflicts between tabs).
-3. In window 1: open "Teleconsultation", keep the default room code (`amal-suivi`), click "Activer camera et rejoindre", and allow camera/microphone access when prompted.
-4. In window 2: repeat with the same room code.
-5. Expected result: each window shows its own small self-preview, and within a couple of seconds the other window's video fills the main frame with the status switching to "Consultation connectee."
-6. Test the controls: mute the microphone in one window (the button dims and turns red), toggle the camera off, then click "Terminer" in both windows and confirm the video stops and the status resets to "Consultation terminee."
+2. Window 1: open <http://127.0.0.1:8000> and log in as the patient (`amal`).
+3. Window 2: open the same address and log in as the doctor (`dr.benali`).
+4. Doctor: click "Demarrer une consultation". It is refused with "Le patient n'a pas encore donne son consentement" because the patient has not consented yet.
+5. Patient: in "Mon suivi", tick the consent box and click "Enregistrer mon accord". The doctor's dashboard now shows the consent as "Confirme".
+6. Patient: send a normal reading, then click "Simuler une alerte" and send the critical reading. The doctor receives the alert live (toast, bell counter, alert card) and acknowledges it.
+7. Doctor: click "Demarrer une consultation" and allow the camera. The patient's window immediately shows "Dr. Benali vous invite en teleconsultation".
+8. Patient: click "Rejoindre" and allow the camera. Within a few seconds each window shows the other participant full-size and its own image in the corner, with the status "Consultation connectee".
+9. Try the controls: mute the microphone, turn the camera off (the other side is told), or switch camera from the list.
+10. Doctor: click "Terminer". The patient is told "Le medecin a termine la consultation" and both cameras turn off.
 
 Camera selection: phone-as-webcam drivers such as Camo, Iriun, DroidCam or OBS register as extra cameras and show a black frame or a logo when their phone app is not connected. The app therefore ranks physical webcams first, checks each candidate for a real (non-black) image before using it, and remembers the camera that worked. The "Camera" list in the consultation panel marks virtual cameras and switches camera live during a call. If one side sees a black image, the status line says whether the problem is the local camera or the other participant's.
 
-`localhost` and `127.0.0.1` are treated as secure origins by every major browser, so no extra flags or HTTPS setup are needed for this local test. Only the signaling relay (not the live camera/microphone capture) is covered by the automated test in `tests/test_api.py`; the video call itself is a manual test, as documented in `docs/validation.md`.
+`localhost` and `127.0.0.1` are treated as secure origins by every major browser, so no extra flags or HTTPS setup are needed for this local test. The automated tests in `tests/test_api.py` cover login, permissions, consent, invitations and the authenticated signaling relay; the live camera and microphone capture remains a manual test, as documented in `docs/validation.md`.
 
 ## Test
 
