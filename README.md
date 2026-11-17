@@ -30,6 +30,19 @@ Open <http://127.0.0.1:8000>. The API documentation is available at <http://127.
 3. Switch to the doctor area to see the alert and updated clinical history.
 4. Open a second browser window, choose the same video room, and start/join the WebRTC consultation.
 
+## Testing the video call
+
+The WebRTC video room needs a real browser with camera and microphone access, so it cannot be exercised inside an automated or sandboxed tool. To test it yourself:
+
+1. Start the server (see Quick start above) and keep it running.
+2. Open two separate browser windows pointed at <http://127.0.0.1:8000> (two different browser profiles, or a normal window plus a private/incognito window, avoids any camera-sharing conflicts between tabs).
+3. In window 1: open "Teleconsultation", keep the default room code (`amal-suivi`), click "Activer camera et rejoindre", and allow camera/microphone access when prompted.
+4. In window 2: repeat with the same room code.
+5. Expected result: each window shows its own small self-preview, and within a couple of seconds the other window's video fills the main frame with the status switching to "Consultation connectee."
+6. Test the controls: mute the microphone in one window (the button dims and turns red), toggle the camera off, then click "Terminer" in both windows and confirm the video stops and the status resets to "Consultation terminee."
+
+`localhost` and `127.0.0.1` are treated as secure origins by every major browser, so no extra flags or HTTPS setup are needed for this local test. Only the signaling relay (not the live camera/microphone capture) is covered by the automated test in `tests/test_api.py`; the video call itself is a manual test, as documented in `docs/validation.md`.
+
 ## Test
 
 ```powershell

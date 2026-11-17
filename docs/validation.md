@@ -13,7 +13,7 @@ Verifier le fonctionnement de bout en bout, y compris un cas degrade, avec des r
 | V3 | Envoyer SpO2 89 % | Alerte critique creee et visible | 1 alerte, WebSocket diffuse |
 | V4 | Acquitter l'alerte | Etat passe a `acknowledged` | 1 modification |
 | V5 | Envoyer une valeur hors plage API | Rejet de la mesure | HTTP 422 |
-| V6 | Deux navigateurs, meme salle | Negociation video WebRTC | Flux local et distant actifs |
+| V6 | Deux navigateurs, meme salle | Negociation video WebRTC | Flux local et distant actifs (procedure manuelle detaillee dans `README.md`, section *Testing the video call*) |
 
 ## Resultats chiffres (mesures reelles, bande de test FastAPI, machine locale)
 
