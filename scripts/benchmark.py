@@ -2,13 +2,16 @@
 
 Usage: python scripts/benchmark.py
 """
+import os
 import random
 import statistics
+import tempfile
 import time
 from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+os.environ["SAHALINK_DB_PATH"] = str(Path(tempfile.gettempdir()) / "sahalink-benchmark.db")
 
 from fastapi.testclient import TestClient
 

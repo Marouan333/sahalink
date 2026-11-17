@@ -194,19 +194,36 @@ async def alerts_socket(websocket: WebSocket):
         alert_clients.discard(websocket)
 
 
+MAX_PEERS_PER_ROOM = 2
+
+
+async def relay(peers: set[WebSocket], sender: WebSocket, message: str):
+    for peer in list(peers):
+        if peer is sender:
+            continue
+        try:
+            await peer.send_text(message)
+        except Exception:
+            peers.discard(peer)
+
+
 @app.websocket("/ws/signaling/{room}")
 async def signaling_socket(websocket: WebSocket, room: str):
     await websocket.accept()
     peers = signal_rooms.setdefault(room, set())
+    if len(peers) >= MAX_PEERS_PER_ROOM:
+        await websocket.send_text(json.dumps({"type": "room-full"}))
+        await websocket.close()
+        return
     peers.add(websocket)
     try:
         while True:
-            message = await websocket.receive_text()
-            for peer in list(peers):
-                if peer is not websocket:
-                    await peer.send_text(message)
+            await relay(peers, websocket, await websocket.receive_text())
     except WebSocketDisconnect:
+        pass
+    finally:
         peers.discard(websocket)
+        await relay(peers, websocket, json.dumps({"type": "leave", "from": "server"}))
         if not peers:
             signal_rooms.pop(room, None)
 

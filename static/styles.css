@@ -70,7 +70,8 @@ button {
   cursor: pointer;
 }
 button:focus-visible,
-input:focus-visible {
+input:focus-visible,
+select:focus-visible {
   outline: 3px solid rgba(79, 70, 229, 0.3);
   outline-offset: 2px;
 }
@@ -565,6 +566,22 @@ tbody tr:hover td { background: var(--surface-sunken); }
   font-variant-numeric: tabular-nums;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
+.video-settings select {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  margin-top: 5px;
+  min-height: 42px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13.5px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.video-settings .camera-label { display: block; margin-top: 14px; }
+.video-settings select:focus,
 .vital-form input:focus, .video-settings input:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);

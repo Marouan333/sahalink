@@ -41,6 +41,8 @@ The WebRTC video room needs a real browser with camera and microphone access, so
 5. Expected result: each window shows its own small self-preview, and within a couple of seconds the other window's video fills the main frame with the status switching to "Consultation connectee."
 6. Test the controls: mute the microphone in one window (the button dims and turns red), toggle the camera off, then click "Terminer" in both windows and confirm the video stops and the status resets to "Consultation terminee."
 
+Camera selection: phone-as-webcam drivers such as Camo, Iriun, DroidCam or OBS register as extra cameras and show a black frame or a logo when their phone app is not connected. The app therefore ranks physical webcams first, checks each candidate for a real (non-black) image before using it, and remembers the camera that worked. The "Camera" list in the consultation panel marks virtual cameras and switches camera live during a call. If one side sees a black image, the status line says whether the problem is the local camera or the other participant's.
+
 `localhost` and `127.0.0.1` are treated as secure origins by every major browser, so no extra flags or HTTPS setup are needed for this local test. Only the signaling relay (not the live camera/microphone capture) is covered by the automated test in `tests/test_api.py`; the video call itself is a manual test, as documented in `docs/validation.md`.
 
 ## Test

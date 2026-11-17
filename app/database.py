@@ -1,9 +1,10 @@
+import os
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
 
 
-DATABASE_PATH = Path(__file__).resolve().parent.parent / "telecare.db"
+DATABASE_PATH = Path(os.environ.get("SAHALINK_DB_PATH") or Path(__file__).resolve().parent.parent / "telecare.db")
 
 
 @contextmanager

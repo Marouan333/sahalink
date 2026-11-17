@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/static/styles.css?v=4" />
+    <link rel="stylesheet" href="/static/styles.css?v=5" />
   </head>
   <body>
     <div class="app-shell">
@@ -191,6 +191,8 @@
               <h3>Rejoindre une salle</h3>
               <label for="room-name">Code de consultation</label>
               <input id="room-name" value="amal-suivi" maxlength="40" />
+              <label for="camera-select" class="camera-label">Camera</label>
+              <select id="camera-select"><option value="">Detection automatique</option></select>
               <p>Partagez ce code avec le patient ou le medecin sur le meme reseau de demonstration.</p>
               <button id="start-call" class="primary-button" type="button">
                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6.5" width="13" height="11" rx="2"></rect><path d="M16 10.3 21 7v10l-5-3.3Z"></path></svg>
@@ -212,6 +214,6 @@
       </main>
     </div>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
-    <script src="/static/app.js?v=14"></script>
+    <script src="/static/app.js?v=18"></script>
   </body>
 </html>
