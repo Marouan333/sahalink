@@ -176,12 +176,32 @@ function watchForNoSignal(videoEl, label) {
   });
 }
 
+const CAMERA_CONSTRAINT_ATTEMPTS = [
+  { video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24 } }, audio: true },
+  { video: { width: { ideal: 320 }, height: { ideal: 240 }, frameRate: { ideal: 15 } }, audio: true },
+  { video: true, audio: true },
+];
+let cameraRetryCount = 0;
+
+async function acquireCamera() {
+  let lastError;
+  for (const constraints of CAMERA_CONSTRAINT_ATTEMPTS) {
+    try {
+      return await navigator.mediaDevices.getUserMedia(constraints);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError;
+}
+
 async function activateVideo() {
   if (localStream) { toast("La camera est deja active.", true); return; }
   const room = $("#room-name").value.trim();
   if (!room) { toast("Saisissez un code de consultation.", true); return; }
+  cameraRetryCount = 0;
   try {
-    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    localStream = await acquireCamera();
     localStream.getTracks().forEach((track) => {
       track.onended = () => { toast("Le flux camera ou microphone a ete interrompu.", true); endCall(); };
     });
@@ -198,6 +218,26 @@ async function activateVideo() {
   } catch (error) { $("#video-status").textContent = "Camera ou microphone indisponible. Autorisez-les puis reessayez."; toast("Impossible d'acceder a la camera.", true); }
 }
 
+async function retryCameraCapture() {
+  if (!peerConnection || peerConnection.connectionState === "closed") return;
+  cameraRetryCount += 1;
+  try {
+    localStream?.getTracks().forEach((track) => track.stop());
+    localStream = await acquireCamera();
+    localStream.getTracks().forEach((track) => {
+      track.onended = () => { toast("Le flux camera ou microphone a ete interrompu.", true); endCall(); };
+      const sender = peerConnection.getSenders().find((item) => item.track && item.track.kind === track.kind);
+      if (sender) sender.replaceTrack(track);
+    });
+    const localVideo = $("#local-video");
+    localVideo.srcObject = localStream;
+    localVideo.play?.().catch(() => {});
+    watchForOutboundVideo(peerConnection);
+  } catch (error) {
+    $("#video-status").textContent = "Nouvelle tentative de camera impossible. Autorisez l'acces puis cliquez sur Terminer et reessayez.";
+  }
+}
+
 async function watchForOutboundVideo(pc, delayMs = 4500) {
   await new Promise((resolve) => setTimeout(resolve, delayMs));
   if (!pc || pc.connectionState === "closed") return;
@@ -205,7 +245,13 @@ async function watchForOutboundVideo(pc, delayMs = 4500) {
   let sent = 0;
   stats.forEach((entry) => { if (entry.type === "outbound-rtp" && entry.kind === "video") sent = entry.packetsSent; });
   if (sent === 0) {
-    $("#video-status").textContent = "Votre camera ne transmet aucune image (0 paquet video envoye). Fermez les autres programmes ou onglets qui l'utilisent (Teams, Zoom, un autre onglet SahaLink), verifiez qu'elle n'est pas couverte ou desactivee, puis cliquez sur Terminer et reessayez.";
+    if (cameraRetryCount < 1) {
+      $("#video-status").textContent = "Aucune image camera transmise. Nouvelle tentative automatique en cours...";
+      toast("Nouvelle tentative de camera en cours.", true);
+      await retryCameraCapture();
+      return;
+    }
+    $("#video-status").textContent = "Votre camera ne transmet toujours aucune image apres une nouvelle tentative. Fermez les autres programmes ou onglets qui l'utilisent (Teams, Zoom, un autre onglet SahaLink), vérifiez qu'elle n'est pas couverte ou desactivee, puis cliquez sur Terminer et reessayez.";
     toast("Votre camera est active mais ne transmet aucune image.", true);
   }
 }
