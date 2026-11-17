@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 import secrets
 from datetime import datetime, timezone
 from pathlib import Path
@@ -22,6 +23,19 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 MAX_PEERS_PER_ROOM = 2
 SOCKET_AUTH_TIMEOUT_SECONDS = 10
+DEFAULT_ICE_SERVERS = [{"urls": ["stun:stun.l.google.com:19302", "stun:stun.cloudflare.com:3478"]}]
+
+
+def configured_ice_servers() -> list:
+    """ICE_SERVERS may hold a JSON list of RTCIceServer objects, e.g. a TURN relay for strict NATs."""
+    raw = os.environ.get("ICE_SERVERS", "").strip()
+    if not raw:
+        return DEFAULT_ICE_SERVERS
+    try:
+        servers = json.loads(raw)
+    except ValueError:
+        return DEFAULT_ICE_SERVERS
+    return servers if isinstance(servers, list) and servers else DEFAULT_ICE_SERVERS
 
 
 class VitalInput(BaseModel):
@@ -187,6 +201,11 @@ async def me(user: dict = Depends(current_user)):
     return user
 
 
+@app.get("/api/rtc-config")
+async def rtc_config(user: dict = Depends(current_user)):
+    return {"iceServers": configured_ice_servers()}
+
+
 @app.get("/api/patients/{patient_id}")
 async def patient(patient_id: int, user: dict = Depends(current_user)):
     ensure_patient_access(user, patient_id)
@@ -324,7 +343,11 @@ async def end_consultation(room: str, user: dict = Depends(doctor_only)):
 
 def same_origin(websocket: WebSocket) -> bool:
     origin = websocket.headers.get("origin")
-    return not origin or urlparse(origin).netloc == websocket.headers.get("host")
+    if not origin:
+        return True
+    # Behind a tunnel or reverse proxy the public host arrives in X-Forwarded-Host.
+    hosts = {websocket.headers.get("host"), websocket.headers.get("x-forwarded-host")}
+    return urlparse(origin).netloc in hosts
 
 
 async def authenticate_socket(websocket: WebSocket) -> Optional[dict]:

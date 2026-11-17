@@ -202,6 +202,20 @@ class SahaLinkApiTests(unittest.TestCase):
         self.assertEqual(response.json()["status"], "ended")
         self.assertIsNone(self.client.get("/api/consultations/active", headers=self.auth(self.patient_token)).json())
 
+    def test_rtc_config_requires_a_session_and_lists_ice_servers(self):
+        self.assertEqual(self.client.get("/api/rtc-config").status_code, 401)
+        servers = self.client.get("/api/rtc-config", headers=self.auth(self.doctor_token)).json()["iceServers"]
+        self.assertTrue(servers and servers[0]["urls"])
+
+    def test_websocket_accepts_the_public_host_of_a_proxy_and_rejects_other_sites(self):
+        proxied = {"origin": "https://demo.example.org", "x-forwarded-host": "demo.example.org"}
+        with self.client.websocket_connect("/ws/events", headers=proxied) as events:
+            events.send_text(json.dumps({"type": "auth", "token": self.doctor_token}))
+            self.assertEqual(json.loads(events.receive_text())["type"], "auth-ok")
+        with self.assertRaises(WebSocketDisconnect):
+            with self.client.websocket_connect("/ws/events", headers={"origin": "https://evil.example.com"}):
+                pass
+
     def test_tests_do_not_touch_the_demo_database(self):
         self.assertNotEqual(Path(DATABASE_PATH).name, "telecare.db")
 

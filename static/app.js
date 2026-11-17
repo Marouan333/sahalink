@@ -4,6 +4,7 @@ let currentUser = null;
 let currentView = "doctor";
 let eventsSocket;
 let activeConsultation = null;
+let iceServers = [{ urls: ["stun:stun.l.google.com:19302", "stun:stun.cloudflare.com:3478"] }];
 let localStream;
 let peerConnection;
 let signalSocket;
@@ -114,6 +115,7 @@ async function startSession(user) {
   $(".app-shell").hidden = false;
   applyRole();
   updateConsultationUi();
+  api("/api/rtc-config").then((config) => { if (config?.iceServers?.length) iceServers = config.iceServers; }).catch(() => {});
   connectEvents();
   refreshCameraList();
   showView(isDoctor() ? "doctor" : "patient");
@@ -644,7 +646,7 @@ function createPeerConnection() {
   peerConnection?.close();
   pendingCandidates = [];
   remoteConnected = false;
-  const pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+  const pc = new RTCPeerConnection({ iceServers });
   localStream.getTracks().forEach((track) => pc.addTrack(track, localStream));
   pc.onicecandidate = (event) => { if (event.candidate) sendSignal({ type: "candidate", candidate: event.candidate }); };
   pc.ontrack = (event) => {
