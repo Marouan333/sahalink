@@ -150,15 +150,46 @@ function connectAlertSocket() {
   alertSocket.onclose = () => setTimeout(connectAlertSocket, 2500);
 }
 
+function waitForFrame(videoEl, timeoutMs = 4000) {
+  return new Promise((resolve) => {
+    if (typeof videoEl.requestVideoFrameCallback === "function") {
+      const timer = setTimeout(() => resolve(false), timeoutMs);
+      videoEl.requestVideoFrameCallback(() => { clearTimeout(timer); resolve(true); });
+      return;
+    }
+    const start = performance.now();
+    const check = () => {
+      if (videoEl.videoWidth > 0 && videoEl.videoHeight > 0) return resolve(true);
+      if (performance.now() - start > timeoutMs) return resolve(false);
+      requestAnimationFrame(check);
+    };
+    check();
+  });
+}
+
+function watchForNoSignal(videoEl, label) {
+  waitForFrame(videoEl).then((hasFrame) => {
+    if (!hasFrame) {
+      $("#video-status").textContent = `Aucune image ${label} recue. Fermez les autres onglets ou applications qui utilisent la camera, puis cliquez sur Terminer et reessayez.`;
+      toast(`Aucune image ${label}.`, true);
+    }
+  });
+}
+
 async function activateVideo() {
+  if (localStream) { toast("La camera est deja active.", true); return; }
   const room = $("#room-name").value.trim();
   if (!room) { toast("Saisissez un code de consultation.", true); return; }
   try {
     localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    localStream.getTracks().forEach((track) => {
+      track.onended = () => { toast("Le flux camera ou microphone a ete interrompu.", true); endCall(); };
+    });
     const localVideo = $("#local-video");
     localVideo.srcObject = localStream;
     localVideo.play?.().catch(() => {});
     $("#video-status").textContent = "Camera active. Connexion a la salle en cours.";
+    watchForNoSignal(localVideo, "camera locale");
     const protocol = location.protocol === "https:" ? "wss" : "ws";
     signalSocket = new WebSocket(`${protocol}://${location.host}/ws/signaling/${encodeURIComponent(room)}`);
     signalSocket.onopen = setupPeerConnection;
@@ -167,16 +198,30 @@ async function activateVideo() {
   } catch (error) { $("#video-status").textContent = "Camera ou microphone indisponible. Autorisez-les puis reessayez."; toast("Impossible d'acceder a la camera.", true); }
 }
 
+async function watchForOutboundVideo(pc, delayMs = 4500) {
+  await new Promise((resolve) => setTimeout(resolve, delayMs));
+  if (!pc || pc.connectionState === "closed") return;
+  const stats = await pc.getStats();
+  let sent = 0;
+  stats.forEach((entry) => { if (entry.type === "outbound-rtp" && entry.kind === "video") sent = entry.packetsSent; });
+  if (sent === 0) {
+    $("#video-status").textContent = "Votre camera ne transmet aucune image (0 paquet video envoye). Fermez les autres programmes ou onglets qui l'utilisent (Teams, Zoom, un autre onglet SahaLink), verifiez qu'elle n'est pas couverte ou desactivee, puis cliquez sur Terminer et reessayez.";
+    toast("Votre camera est active mais ne transmet aucune image.", true);
+  }
+}
+
 async function setupPeerConnection() {
   peerConnection?.close();
   peerConnection = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
   localStream.getTracks().forEach((track) => peerConnection.addTrack(track, localStream));
+  watchForOutboundVideo(peerConnection);
   peerConnection.ontrack = (event) => {
     const remoteVideo = $("#remote-video");
     remoteVideo.srcObject = event.streams[0];
     remoteVideo.play?.().catch(() => { remoteVideo.muted = true; remoteVideo.play?.().catch(() => {}); });
     $("#remote-placeholder").hidden = true;
     $("#video-status").textContent = "Consultation connectee.";
+    watchForNoSignal(remoteVideo, "du correspondant");
   };
   peerConnection.onicecandidate = (event) => { if (event.candidate && signalSocket?.readyState === WebSocket.OPEN) signalSocket.send(JSON.stringify({ type: "candidate", candidate: event.candidate })); };
   const offer = await peerConnection.createOffer();
