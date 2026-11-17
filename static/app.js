@@ -176,16 +176,36 @@ function watchForNoSignal(videoEl, label) {
   });
 }
 
-const CAMERA_CONSTRAINT_ATTEMPTS = [
-  { video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24 } }, audio: true },
-  { video: { width: { ideal: 320 }, height: { ideal: 240 }, frameRate: { ideal: 15 } }, audio: true },
-  { video: true, audio: true },
-];
+const IR_CAMERA_PATTERN = /ir|infrared|depth|windows hello/i;
 let cameraRetryCount = 0;
+let avoidedDeviceIds = [];
 
-async function acquireCamera() {
+async function pickNonInfraredCameraId() {
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const cameras = devices.filter((device) => device.kind === "videoinput");
+    const usable = cameras.filter((device) => !IR_CAMERA_PATTERN.test(device.label) && !avoidedDeviceIds.includes(device.deviceId));
+    if (usable.length) return usable[0].deviceId;
+    const fallback = cameras.find((device) => !avoidedDeviceIds.includes(device.deviceId));
+    return fallback ? fallback.deviceId : null;
+  } catch {
+    return null;
+  }
+}
+
+function constraintAttempts(deviceId) {
+  const videoBase = deviceId ? { deviceId: { exact: deviceId } } : {};
+  return [
+    { video: { ...videoBase, width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24 } }, audio: true },
+    { video: { ...videoBase, width: { ideal: 320 }, height: { ideal: 240 }, frameRate: { ideal: 15 } }, audio: true },
+    { video: deviceId ? { deviceId: { exact: deviceId } } : true, audio: true },
+  ];
+}
+
+async function acquireCamera(preferredDeviceId) {
+  const attempts = constraintAttempts(preferredDeviceId);
   let lastError;
-  for (const constraints of CAMERA_CONSTRAINT_ATTEMPTS) {
+  for (const constraints of attempts) {
     try {
       return await navigator.mediaDevices.getUserMedia(constraints);
     } catch (error) {
@@ -200,8 +220,10 @@ async function activateVideo() {
   const room = $("#room-name").value.trim();
   if (!room) { toast("Saisissez un code de consultation.", true); return; }
   cameraRetryCount = 0;
+  avoidedDeviceIds = [];
   try {
-    localStream = await acquireCamera();
+    const preferredId = await pickNonInfraredCameraId();
+    localStream = await acquireCamera(preferredId);
     localStream.getTracks().forEach((track) => {
       track.onended = () => { toast("Le flux camera ou microphone a ete interrompu.", true); endCall(); };
     });
@@ -222,8 +244,12 @@ async function retryCameraCapture() {
   if (!peerConnection || peerConnection.connectionState === "closed") return;
   cameraRetryCount += 1;
   try {
+    const deadVideoTrack = localStream?.getVideoTracks()[0];
+    const deadDeviceId = deadVideoTrack?.getSettings().deviceId;
+    if (deadDeviceId) avoidedDeviceIds.push(deadDeviceId);
     localStream?.getTracks().forEach((track) => track.stop());
-    localStream = await acquireCamera();
+    const nextId = await pickNonInfraredCameraId();
+    localStream = await acquireCamera(nextId);
     localStream.getTracks().forEach((track) => {
       track.onended = () => { toast("Le flux camera ou microphone a ete interrompu.", true); endCall(); };
       const sender = peerConnection.getSenders().find((item) => item.track && item.track.kind === track.kind);
@@ -245,8 +271,8 @@ async function watchForOutboundVideo(pc, delayMs = 4500) {
   let sent = 0;
   stats.forEach((entry) => { if (entry.type === "outbound-rtp" && entry.kind === "video") sent = entry.packetsSent; });
   if (sent === 0) {
-    if (cameraRetryCount < 1) {
-      $("#video-status").textContent = "Aucune image camera transmise. Nouvelle tentative automatique en cours...";
+    if (cameraRetryCount < 2) {
+      $("#video-status").textContent = `Aucune image camera transmise. Nouvelle tentative automatique (${cameraRetryCount + 1}/2) avec une autre camera si disponible...`;
       toast("Nouvelle tentative de camera en cours.", true);
       await retryCameraCapture();
       return;
