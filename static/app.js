@@ -264,29 +264,57 @@ async function retryCameraCapture() {
   }
 }
 
-async function watchForOutboundVideo(pc, delayMs = 4500) {
-  await new Promise((resolve) => setTimeout(resolve, delayMs));
-  if (!pc || pc.connectionState === "closed") return;
+async function outboundVideoPacketCount(pc) {
   const stats = await pc.getStats();
   let sent = 0;
   stats.forEach((entry) => { if (entry.type === "outbound-rtp" && entry.kind === "video") sent = entry.packetsSent; });
-  if (sent === 0) {
-    if (cameraRetryCount < 2) {
-      $("#video-status").textContent = `Aucune image camera transmise. Nouvelle tentative automatique (${cameraRetryCount + 1}/2) avec une autre camera si disponible...`;
-      toast("Nouvelle tentative de camera en cours.", true);
-      await retryCameraCapture();
+  return sent;
+}
+
+function startOutboundVideoWatchdog(pc) {
+  let ticks = 0;
+  const timer = setInterval(async () => {
+    ticks += 1;
+    if (!pc || pc !== peerConnection || pc.connectionState === "closed" || pc.connectionState === "failed") {
+      clearInterval(timer);
       return;
     }
-    $("#video-status").textContent = "Votre camera ne transmet toujours aucune image apres une nouvelle tentative. Fermez les autres programmes ou onglets qui l'utilisent (Teams, Zoom, un autre onglet SahaLink), vérifiez qu'elle n'est pas couverte ou desactivee, puis cliquez sur Terminer et reessayez.";
-    toast("Votre camera est active mais ne transmet aucune image.", true);
+    const sent = await outboundVideoPacketCount(pc);
+    if (sent > 0) {
+      clearInterval(timer);
+      $("#video-status").textContent = "Consultation connectee. Votre camera transmet une image normalement.";
+      toast("Votre camera transmet a nouveau une image.");
+      return;
+    }
+    if (ticks >= 15) clearInterval(timer);
+  }, 2000);
+}
+
+async function watchForOutboundVideo(pc, delayMs = 6000) {
+  await new Promise((resolve) => setTimeout(resolve, delayMs));
+  if (!pc || pc.connectionState !== "connected") return;
+  if ((await outboundVideoPacketCount(pc)) > 0) return;
+
+  await new Promise((resolve) => setTimeout(resolve, 4500));
+  if (!pc || pc.connectionState !== "connected") return;
+  if ((await outboundVideoPacketCount(pc)) > 0) return;
+
+  if (cameraRetryCount < 2) {
+    $("#video-status").textContent = `Aucune image camera transmise. Nouvelle tentative automatique (${cameraRetryCount + 1}/2) avec une autre camera si disponible...`;
+    toast("Nouvelle tentative de camera en cours.", true);
+    await retryCameraCapture();
+    return;
   }
+  $("#video-status").textContent = "Votre camera ne transmet toujours aucune image apres une nouvelle tentative. Fermez les autres programmes ou onglets qui l'utilisent (Teams, Zoom, un autre onglet SahaLink), vérifiez qu'elle n'est pas couverte ou desactivee, puis cliquez sur Terminer et reessayez.";
+  toast("Votre camera est active mais ne transmet aucune image.", true);
+  startOutboundVideoWatchdog(pc);
 }
 
 async function setupPeerConnection() {
   peerConnection?.close();
   peerConnection = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
   localStream.getTracks().forEach((track) => peerConnection.addTrack(track, localStream));
-  watchForOutboundVideo(peerConnection);
+  $("#video-status").textContent = "Camera active. En attente d'un correspondant dans la salle...";
   peerConnection.ontrack = (event) => {
     const remoteVideo = $("#remote-video");
     remoteVideo.srcObject = event.streams[0];
@@ -294,6 +322,7 @@ async function setupPeerConnection() {
     $("#remote-placeholder").hidden = true;
     $("#video-status").textContent = "Consultation connectee.";
     watchForNoSignal(remoteVideo, "du correspondant");
+    watchForOutboundVideo(peerConnection);
   };
   peerConnection.onicecandidate = (event) => { if (event.candidate && signalSocket?.readyState === WebSocket.OPEN) signalSocket.send(JSON.stringify({ type: "candidate", candidate: event.candidate })); };
   const offer = await peerConnection.createOffer();
