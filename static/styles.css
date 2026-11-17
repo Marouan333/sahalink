@@ -602,6 +602,7 @@ tbody tr:hover td { background: var(--surface-sunken); }
   gap: 6px;
   background: radial-gradient(circle at 60% 20%, #221f3d, #0b0b10);
 }
+.remote-placeholder[hidden] { display: none; }
 .remote-placeholder span { font-size: 13px; color: #9b9bb0; }
 .self-video {
   position: absolute;
