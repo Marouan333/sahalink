@@ -155,7 +155,9 @@ async function activateVideo() {
   if (!room) { toast("Saisissez un code de consultation.", true); return; }
   try {
     localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-    $("#local-video").srcObject = localStream;
+    const localVideo = $("#local-video");
+    localVideo.srcObject = localStream;
+    localVideo.play?.().catch(() => {});
     $("#video-status").textContent = "Camera active. Connexion a la salle en cours.";
     const protocol = location.protocol === "https:" ? "wss" : "ws";
     signalSocket = new WebSocket(`${protocol}://${location.host}/ws/signaling/${encodeURIComponent(room)}`);
@@ -169,7 +171,13 @@ async function setupPeerConnection() {
   peerConnection?.close();
   peerConnection = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
   localStream.getTracks().forEach((track) => peerConnection.addTrack(track, localStream));
-  peerConnection.ontrack = (event) => { $("#remote-video").srcObject = event.streams[0]; $("#remote-placeholder").hidden = true; $("#video-status").textContent = "Consultation connectee."; };
+  peerConnection.ontrack = (event) => {
+    const remoteVideo = $("#remote-video");
+    remoteVideo.srcObject = event.streams[0];
+    remoteVideo.play?.().catch(() => { remoteVideo.muted = true; remoteVideo.play?.().catch(() => {}); });
+    $("#remote-placeholder").hidden = true;
+    $("#video-status").textContent = "Consultation connectee.";
+  };
   peerConnection.onicecandidate = (event) => { if (event.candidate && signalSocket?.readyState === WebSocket.OPEN) signalSocket.send(JSON.stringify({ type: "candidate", candidate: event.candidate })); };
   const offer = await peerConnection.createOffer();
   await peerConnection.setLocalDescription(offer);
