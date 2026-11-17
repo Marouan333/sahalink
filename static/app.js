@@ -176,6 +176,44 @@ function watchForNoSignal(videoEl, label) {
   });
 }
 
+async function sampleBrightness(videoEl, delayMs = 1500) {
+  await new Promise((resolve) => setTimeout(resolve, delayMs));
+  if (!videoEl.videoWidth || !videoEl.videoHeight) return null;
+  const canvas = document.createElement("canvas");
+  canvas.width = videoEl.videoWidth;
+  canvas.height = videoEl.videoHeight;
+  const ctx = canvas.getContext("2d");
+  try {
+    ctx.drawImage(videoEl, 0, 0);
+    const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    let total = 0;
+    let count = 0;
+    for (let i = 0; i < data.length; i += 4 * 16) {
+      total += (data[i] + data[i + 1] + data[i + 2]) / 3;
+      count += 1;
+    }
+    return count ? Math.round(total / count) : null;
+  } catch {
+    return null;
+  }
+}
+
+function reportLocalCameraDiagnostics(stream, videoEl, ticksLeft = 6) {
+  if (stream !== localStream) return;
+  const track = stream.getVideoTracks()[0];
+  const label = track?.label || "camera sans nom (label vide, autorisation incomplete ?)";
+  const settings = track?.getSettings ? track.getSettings() : {};
+  sampleBrightness(videoEl, 0).then((brightness) => {
+    if (stream !== localStream) return;
+    let brightnessText;
+    if (brightness === null) brightnessText = "aucune image lisible pour le moment (dimension 0 ou capture impossible)";
+    else if (brightness < 8) brightnessText = `image quasi noire (luminosite ${brightness}/255)`;
+    else brightnessText = `image exploitable (luminosite ${brightness}/255)`;
+    $("#video-status").textContent = `Camera : "${label}" (${settings.width || "?"}x${settings.height || "?"}). ${brightnessText}. En attente d'un correspondant dans la salle...`;
+    if (ticksLeft > 1) setTimeout(() => reportLocalCameraDiagnostics(stream, videoEl, ticksLeft - 1), 2000);
+  });
+}
+
 const IR_CAMERA_PATTERN = /ir|infrared|depth|windows hello/i;
 let cameraRetryCount = 0;
 let avoidedDeviceIds = [];
@@ -231,7 +269,7 @@ async function activateVideo() {
     localVideo.srcObject = localStream;
     localVideo.play?.().catch(() => {});
     $("#video-status").textContent = "Camera active. Connexion a la salle en cours.";
-    watchForNoSignal(localVideo, "camera locale");
+    reportLocalCameraDiagnostics(localStream, localVideo);
     const protocol = location.protocol === "https:" ? "wss" : "ws";
     signalSocket = new WebSocket(`${protocol}://${location.host}/ws/signaling/${encodeURIComponent(room)}`);
     signalSocket.onopen = setupPeerConnection;
@@ -258,6 +296,7 @@ async function retryCameraCapture() {
     const localVideo = $("#local-video");
     localVideo.srcObject = localStream;
     localVideo.play?.().catch(() => {});
+    reportLocalCameraDiagnostics(localStream, localVideo);
     watchForOutboundVideo(peerConnection);
   } catch (error) {
     $("#video-status").textContent = "Nouvelle tentative de camera impossible. Autorisez l'acces puis cliquez sur Terminer et reessayez.";
