@@ -66,6 +66,14 @@ The app needs a long-running server (WebSockets carry alerts, invitations and ca
 python -m unittest discover -s tests -v
 ```
 
+To check a running server (local or public) end to end, including login, permissions, consent, live alerts, invitation and call signaling:
+
+```powershell
+python scripts/smoke_test.py http://127.0.0.1:8000
+```
+
+The smoke test adds data to that server (a consent, readings, an alert, a consultation), so restart from a clean database before a demonstration (stop the server, delete `telecare.db`, start it again).
+
 ## Project documentation
 
 - `docs/rapport-technique.md` (consolidated technical report)
@@ -74,7 +82,8 @@ python -m unittest discover -s tests -v
 - `docs/data-simulation.md`
 - `docs/security-and-compliance.md`
 - `docs/validation.md` (test protocol and measured results)
-- `PRESENTATION.md`
+- `docs/test-utilisabilite.md` (SUS usability protocol, to run with testers; scores computed by `scripts/sus_score.py`)
+- `PRESENTATION.md` (slide plan, demo script, likely questions)
 
 Measured results (latency, detection rate) can be reproduced with:
 

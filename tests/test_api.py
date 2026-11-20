@@ -132,6 +132,25 @@ class SahaLinkApiTests(unittest.TestCase):
         response = self.client.post("/api/consultations", json={"patient_id": 1}, headers=self.auth(self.doctor_token))
         self.assertEqual(response.status_code, 409)
 
+    def test_doctor_dashboard_is_notified_live_of_consent_and_readings(self):
+        with self.client.websocket_connect("/ws/events") as events:
+            events.send_text(json.dumps({"type": "auth", "token": self.doctor_token}))
+            self.assertEqual(json.loads(events.receive_text())["type"], "auth-ok")
+            self.give_consent()
+            consent_event = json.loads(events.receive_text())
+            self.client.post("/api/patients/1/vitals", json=NORMAL_VITAL, headers=self.auth(self.patient_token))
+            vital_event = json.loads(events.receive_text())
+        self.assertEqual((consent_event["type"], consent_event["accepted"]), ("consent", True))
+        self.assertEqual(vital_event["type"], "vital")
+
+    def test_patient_never_receives_the_doctors_alerts(self):
+        with self.client.websocket_connect("/ws/events") as events:
+            events.send_text(json.dumps({"type": "auth", "token": self.patient_token}))
+            self.assertEqual(json.loads(events.receive_text())["type"], "auth-ok")
+            self.client.post("/api/patients/1/vitals", json=CRITICAL_VITAL, headers=self.auth(self.patient_token))
+            self.start_consultation()
+            self.assertEqual(json.loads(events.receive_text())["type"], "invitation")
+
     def test_patient_sees_the_invitation(self):
         with self.client.websocket_connect("/ws/events") as events:
             events.send_text(json.dumps({"type": "auth", "token": self.patient_token}))

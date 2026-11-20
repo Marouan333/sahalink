@@ -20,6 +20,7 @@ Verifier le fonctionnement de bout en bout, y compris un cas degrade, avec des r
 | V10 | Le medecin demarre une teleconsultation apres consentement | Invitation recue en temps reel par le patient | Evenement `invitation` sur `/ws/events` |
 | V11 | Connexion a une salle video sans jeton valide ou par un tiers | Connexion refusee | `auth-failed` ou `forbidden` |
 | V12 | Le medecin termine la consultation | Le patient est notifie, la salle est fermee | Evenement `consultation-ended`, plus de consultation active |
+| V13 | Le patient donne son consentement ou envoie une mesure normale | Le tableau de bord du medecin se met a jour sans rechargement | Evenements `consent` et `vital` sur `/ws/events`, jamais envoyes au patient |
 
 ## Resultats chiffres (mesures reelles, bande de test FastAPI, machine locale)
 
@@ -44,5 +45,7 @@ Ces chiffres proviennent d'un script de benchmark execute localement contre l'AP
 
 ## Resultat attendu de l'automatisation
 
-Le test `tests/test_api.py` (21 tests) controle V1 a V5 et V7 a V12 par API et WebSocket, ainsi que le relais de signalisation WebRTC entre le medecin et le patient authentifies. La video est une validation manuelle car elle demande deux navigateurs et des autorisations materiel. Le script de benchmark (`scripts/benchmark.py`) reproduit les mesures chiffrees ci-dessus.
+Le test `tests/test_api.py` (25 tests) controle V1 a V5 et V7 a V13 par API et WebSocket, ainsi que le relais de signalisation WebRTC entre le medecin et le patient authentifies. La video est une validation manuelle car elle demande deux navigateurs et des autorisations materiel. Le script de benchmark (`scripts/benchmark.py`) reproduit les mesures chiffrees ci-dessus.
+
+Le script `scripts/smoke_test.py` rejoue tout le parcours medecin-patient (connexion, refus, consentement, alerte, invitation, signalisation, fin) contre n'importe quelle adresse, y compris le lien public : il a ete execute avec succes sur le serveur local et sur le lien public Cloudflare. Il ne verifie pas la capture video reelle.
 

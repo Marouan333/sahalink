@@ -28,7 +28,12 @@ Ce prototype n'est pas un dispositif medical ni une plateforme prete a recevoir 
 
 ## Cadre a presenter
 
-La presentation cite la loi marocaine 09-08 relative a la protection des personnes physiques a l'egard du traitement des donnees a caractere personnel, ainsi que la loi 131-13 relative a l'exercice de la medecine et de la telemedecine. Les exigences concretes doivent etre validees avec les sources officielles et les responsables competents avant un deploiement reel.
+Deux textes marocains encadrent le projet :
+
+- la **loi 09-08** relative a la protection des personnes physiques a l'egard du traitement des donnees a caractere personnel (dahir n° 1-09-15 du 18 fevrier 2009, controle par la CNDP) ;
+- la **loi 131-13** relative a l'exercice de la medecine (dahir n° 1-15-26 du 19 fevrier 2015, B.O. n° 6344 du 19 mars 2015), dont la section 4 est consacree a la telemedecine.
+
+Les exigences concretes doivent etre validees avec les sources officielles et les responsables competents avant un deploiement reel.
 
 ## Norme technique et institutionnelle du sujet
 
@@ -36,15 +41,26 @@ Le sujet impose trois references normatives, toutes trois effectivement traitees
 
 | Norme | Application dans SahaLink |
 |---|---|
-| **Technologie WebRTC** | Flux media patient-medecin en pair-a-pair, chiffre DTLS/SRTP, signalisation SDP/ICE relayee par `/ws/signaling/{room}` (voir `docs/architecture.md`). |
-| **Rapport OMS, Global Observatory for eHealth** (serie *Telemedicine: opportunities and developments in Member States*, OMS, Geneve) | Sert de reference pour le perimetre fonctionnel retenu : continuite du suivi entre deux visites, teleconsultation synchrone video, et necessite d'un consentement explicite et d'une tracabilite des donnees echangees a distance, trois axes que le rapport identifie comme conditions de maturite d'un programme de telesante. Le prototype restreint volontairement son perimetre a ces axes plutot qu'a l'ensemble des 7 composantes du rapport (infrastructure, politique, financement, etc.), qui depassent le cadre d'un prototype pedagogique. |
-| **Loi marocaine 131-13** relative a l'exercice de la medecine (telemedecine, art. 2 et 98 a 106) | Justifie l'exigence de consentement prealable du patient, l'identification des acteurs (patient, medecin) avant toute teleconsultation, et la tracabilite de l'acte via l'horodatage des constantes et des alertes. |
+| **Technologie WebRTC** | Flux media patient-medecin en pair-a-pair, chiffre DTLS/SRTP, signalisation SDP/ICE relayee par `/ws/signaling/{room}` apres authentification (voir `docs/architecture.md`). |
+| **Rapport de l'OMS, Global Observatory for eHealth** (*Telemedicine: opportunities and developments in Member States*, serie Global Observatory for eHealth, vol. 2, 2010) | Reference institutionnelle de contexte sur la telemedecine dans les Etats membres de l'OMS. SahaLink s'inscrit dans la definition de l'OMS : usage des technologies de l'information et de la communication pour echanger a distance des informations utiles au diagnostic, au traitement et au suivi, quand la distance est un facteur critique. Le prototype couvre deux usages : la consultation video patient-medecin et le suivi a distance de constantes avec alerte. |
+| **Loi marocaine 131-13**, section 4 *De la telemedecine* (articles 99 a 102) | Voir le detail article par article ci-dessous. |
+
+### Loi 131-13 : articles 99 a 102 et mise en oeuvre
+
+Texte lu directement dans le Bulletin officiel n° 6344 (copie scannee du site du Ministere de la Sante).
+
+| Article | Ce que dit la loi | Mise en oeuvre dans SahaLink | Limite connue |
+|---|---|---|---|
+| **99** | Les medecins et les etablissements de sante peuvent recourir a la telemedecine, dans le respect de la protection des donnees personnelles et de la confidentialite du dossier medical. La telemedecine permet notamment un diagnostic, un avis specialise ou *une surveillance de l'etat des patients*. | Suivi a distance des constantes avec alertes et teleconsultation video. Confidentialite : authentification, acces par role, WebSockets authentifies, salle video reservee au medecin et au patient. | Chiffrement des donnees au repos et HTTPS maitrise par l'hebergeur a prevoir pour un usage reel. |
+| **100** | Les actes de telemedecine, ainsi que l'identite et les qualifications des medecins intervenants, sont consignes dans le dossier medical du patient. | Table `consultations` (medecin, patient, debut, fin), plus constantes, alertes et consentements horodates. | Les qualifications du medecin (specialite, numero d'ordre) ne sont pas modelisees. |
+| **101** | Aucun acte de telemedecine sans consentement expres, libre et eclaire du patient, ecrit par tout moyen y compris electronique ; droit de refus ; pour un mineur ou une personne protegee, consentement du tuteur ou du representant legal. | Consentement electronique horodate avec finalite ; acceptation ou refus enregistres ; demarrage de la teleconsultation refuse tant que le dernier consentement n'est pas une acceptation (HTTP 409). | Pas de gestion du tuteur legal ni de consentement ecrit signe. |
+| **102** | Les actes de telemedecine et leurs conditions techniques sont fixes par voie reglementaire. | Renvoie a un texte reglementaire que le prototype ne traite pas. | A verifier aupres des sources officielles avant tout deploiement. |
 
 Sources officielles de reference :
 
 - [CNDP - textes et lois, loi 09-08](https://www.cndp.ma/textes-et-lois/)
 - [Ministere de la Sante - loi 131-13 relative a l'exercice de la medecine](https://www.sante.gov.ma/Reglementation/PRATIQUEDESMETIERSDESANTEDANSLESECTEURPRIVE/Loi_131.13_Fr.pdf)
-- [OMS - Global Observatory for eHealth, Telemedicine: opportunities and developments in Member States](https://www.who.int/publications/i/item/9789241564144)
+- [OMS - Global Observatory for eHealth](https://www.who.int/observatories/global-observatory-for-ehealth) (page de l'observatoire, qui liste les enquetes mondiales dont celle de 2009)
 
 ## Consentement dans le scenario
 

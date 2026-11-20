@@ -298,6 +298,11 @@ function connectEvents() {
       toast(`Nouvelle alerte : ${payload.alert.message}`, true);
       refreshDashboard();
     }
+    if (payload.type === "vital") refreshDashboard();
+    if (payload.type === "consent") {
+      toast(payload.accepted ? "Le patient a donne son consentement." : "Le patient a retire son consentement.", !payload.accepted);
+      refreshDashboard();
+    }
     if (payload.type === "invitation") {
       activeConsultation = payload.consultation;
       toast(`${activeConsultation.doctor_name} vous invite en teleconsultation.`);

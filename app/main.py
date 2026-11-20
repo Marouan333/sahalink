@@ -256,6 +256,8 @@ async def add_vital(patient_id: int, vital: VitalInput, user: dict = Depends(cur
             }
             asyncio.create_task(send_event(is_doctor, {"type": "alert", "alert": alert}))
             response["alert"] = alert
+        else:
+            asyncio.create_task(send_event(is_doctor, {"type": "vital", "patient_id": patient_id}))
     return response
 
 
@@ -270,6 +272,7 @@ async def add_consent(patient_id: int, consent: ConsentInput, user: dict = Depen
             "INSERT INTO consents (patient_id, accepted, purpose, created_at) VALUES (?, ?, ?, ?)",
             (patient_id, int(consent.accepted), consent.purpose, created_at),
         )
+    asyncio.create_task(send_event(is_doctor, {"type": "consent", "patient_id": patient_id, "accepted": consent.accepted}))
     return {"id": cursor.lastrowid, "patient_id": patient_id, **consent.model_dump(), "created_at": created_at}
 
 
