@@ -27,6 +27,7 @@ Vérifier le fonctionnement de bout en bout, y compris un cas dégradé, avec de
 | V17 | Huit connexions échouées de suite, puis inscriptions répétées depuis la même adresse | Verrouillage temporaire de la connexion, plafond d'inscriptions | HTTP 429 |
 | V18 | Chargement de la page et injection d'un nom contenant un script | En-têtes de sécurité présents, script inerte affiché comme texte, scripts et connexions externes bloqués | En-tête `Content-Security-Policy`, test manuel dans le navigateur |
 | V19 | Le médecin démarre une consultation avec un second patient alors qu'une est déjà ouverte | L'ancienne consultation est fermée et son patient prévenu | Événement `consultation-ended` puis `invitation` |
+| V20 | Requête HTTPS derrière un proxy, puis requête HTTP avec l'imposition de HTTPS activée | En-tête HSTS sur HTTPS ; redirection 308 vers HTTPS sur HTTP (sauf santé du service et hôtes locaux) | En-tête `Strict-Transport-Security`, HTTP 308 |
 
 ## Résultats chiffrés (mesures réelles, bande de test FastAPI, machine locale)
 
@@ -51,7 +52,7 @@ Ces chiffres proviennent d'un script de benchmark exécuté localement contre l'
 
 ## Résultat attendu de l'automatisation
 
-Le test `tests/test_api.py` (35 tests) contrôle V1 à V5 et V7 à V17 et V19 par API et WebSocket, ainsi que le relais de signalisation WebRTC entre le médecin et le patient authentifiés. La vidéo est une validation manuelle car elle demande deux navigateurs et des autorisations matériel. Le script de benchmark (`scripts/benchmark.py`) reproduit les mesures chiffrées ci-dessus.
+Le test `tests/test_api.py` (37 tests) contrôle V1 à V5 et V7 à V17, V19 et V20 par API et WebSocket, ainsi que le relais de signalisation WebRTC entre le médecin et le patient authentifiés. La vidéo est une validation manuelle car elle demande deux navigateurs et des autorisations matériel. Le script de benchmark (`scripts/benchmark.py`) reproduit les mesures chiffrées ci-dessus.
 
 Le script `scripts/smoke_test.py` rejoue tout le parcours médecin-patient (connexion, refus, consentement, alerte, invitation, signalisation, fin) contre n'importe quelle adresse, y compris le lien public : il a été exécuté avec succès sur le serveur local et sur le lien public Cloudflare. Il ne vérifie pas la capture vidéo réelle.
 

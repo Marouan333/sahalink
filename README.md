@@ -57,7 +57,7 @@ Camera selection: phone-as-webcam drivers such as Camo, Iriun, DroidCam or OBS r
 
 ## Deployment
 
-The app needs a long-running server (WebSockets carry alerts, invitations and call signaling), so it suits Railway, Render or a VM rather than serverless platforms. The `Procfile` starts it with `uvicorn` on `$PORT` behind the host's HTTPS proxy. HTTPS is required for camera access on any address other than `localhost`.
+The app needs a long-running server (WebSockets carry alerts, invitations and call signaling), so it suits Railway, Render or a VM rather than serverless platforms. The `Procfile` starts it with `uvicorn` on `$PORT` behind the host's HTTPS proxy. HTTPS is required for camera access on any address other than `localhost`. Set `SAHALINK_FORCE_HTTPS=1` on a deployment behind a TLS proxy or tunnel to redirect plain HTTP to HTTPS (308); the app also sends `Strict-Transport-Security` on every HTTPS request. Local hosts and `/api/health` are exempt.
 
 - Data lives in SQLite (`telecare.db`) and is re-seeded with the two demo accounts on start. On hosts with an ephemeral disk the data resets on every redeploy, which suits a demonstration.
 - Video calls use public STUN servers by default. Participants behind strict NATs (some mobile networks) may need a TURN relay: set the `ICE_SERVERS` environment variable to a JSON list, for example `[{"urls":"turn:turn.example.org:3478","username":"user","credential":"secret"}]`.

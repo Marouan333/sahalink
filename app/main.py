@@ -13,7 +13,7 @@ from urllib.parse import urlparse
 
 from fastapi import Depends, FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 
@@ -249,9 +249,28 @@ def patient_audience(patient_id: int) -> Callable[[dict], bool]:
     return lambda user: user["role"] == "patient" and user["patient_id"] == patient_id
 
 
+def is_secure_request(request: Request) -> bool:
+    """True when the browser reached us over HTTPS, directly or through a TLS-terminating proxy or tunnel."""
+    forwarded = request.headers.get("x-forwarded-proto", "").split(",")[0].strip().lower()
+    return request.url.scheme == "https" or forwarded == "https"
+
+
 @app.middleware("http")
 async def security_headers(request: Request, call_next):
+    # Transport security (Loi 09-08, art. 24 h): with SAHALINK_FORCE_HTTPS=1 every plain-HTTP request
+    # is redirected to HTTPS, except health checks and local development hosts.
+    local = (request.url.hostname or "") in ("127.0.0.1", "localhost", "::1")
+    if (
+        os.environ.get("SAHALINK_FORCE_HTTPS") == "1"
+        and not is_secure_request(request)
+        and not local
+        and request.url.path != "/api/health"
+    ):
+        return RedirectResponse(str(request.url.replace(scheme="https")), status_code=308)
     response = await call_next(request)
+    if is_secure_request(request):
+        # Tell browsers to refuse any later plain-HTTP connection to this site.
+        response.headers["Strict-Transport-Security"] = "max-age=31536000"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "no-referrer"
     response.headers["Permissions-Policy"] = "camera=(self), microphone=(self), geolocation=()"

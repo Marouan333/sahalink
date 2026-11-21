@@ -16,9 +16,9 @@ Filière INDIA, ENSAM Rabat, 2026/2027
 
 **Cadre normatif et réglementaire** (détail et mise en œuvre dans `docs/security-and-compliance.md`) :
 - **WebRTC** pour la vidéo et l'audio pair à pair.
-- **Rapport de l'OMS, Global Observatory for eHealth** (*Telemedicine: opportunities and developments in Member States*) : référence institutionnelle sur la télémédecine, dont la définition de l'OMS sert de cadre au projet.
+- **Rapport de l'OMS, Global Observatory for eHealth** (*Telemedicine: opportunities and developments in Member States*, vol. 2, 2010) : définition de la télémédecine par l'OMS (quatre éléments : soutien clinique, dépassement de la distance, usage des TIC, amélioration des résultats), importance de l'évaluation (20 % des pays seulement déclarent une évaluation publiée) et obstacles juridiques de confidentialité. Constats détaillés dans `docs/security-and-compliance.md`.
 - **Loi 131-13 relative à l'exercice de la médecine**, section 4 « De la télémédecine », articles 99 à 102 : la télémédecine est autorisée, y compris la surveillance de l'état des patients (art. 99) ; les actes et l'identité du médecin sont consignés au dossier (art. 100) ; le consentement du patient doit être exprès, libre et éclairé, y compris par voie électronique, avec droit de refus (art. 101).
-- **Loi 09-08** sur la protection des données à caractère personnel, à laquelle l'article 99 renvoie pour la confidentialité.
+- **Loi 09-08** sur la protection des données à caractère personnel, à laquelle l'article 99 renvoie pour la confidentialité : les données de santé sont des données sensibles (art. 1) ; consentement indubitable (art. 4) ; mesures de sécurité (art. 23) et huit contrôles propres aux données de santé (art. 24). Correspondance détaillée dans `docs/security-and-compliance.md`.
 
 ### Besoins formalisés
 
@@ -62,7 +62,7 @@ Protocole et résultats détaillés : `docs/validation.md`. Synthèse :
 
 - **Scénario clinique complet** exécuté dans deux fenêtres (médecin et patient) : connexion, refus de démarrage sans consentement, consentement, mesure normale, mesure critique, alerte temps réel, acquittement, invitation, téléconsultation vidéo dans les deux sens, fin de consultation.
 - **Cas dégradés** : valeur impossible rejetée, constante hors seuil, consentement absent, troisième participant refusé, tiers sans jeton refusé, départ du correspondant.
-- **Tests automatisés** : 35 tests (`tests/test_api.py`), tous réussis, sur une base de données temporaire distincte de la base de démonstration.
+- **Tests automatisés** : 37 tests (`tests/test_api.py`), tous réussis, sur une base de données temporaire distincte de la base de démonstration.
 - **Détection du cas dégradé** : 6 profils cliniques, 100 % de détection (`scripts/benchmark.py`).
 - **Rejet des entrées hors plage** : 100 % (3/3).
 - **Latence** (serveur de test local, sans réseau) : écriture d'une mesure normale, médiane 30,9 ms ; création et diffusion d'une alerte, moyenne 25,8 ms ; acquittement, moyenne 28,2 ms. Ces valeurs varient d'une exécution à l'autre sur un poste chargé (voir `docs/validation.md`).
@@ -82,7 +82,7 @@ Protocole et résultats détaillés : `docs/validation.md`. Synthèse :
 
 ## 6. Sécurité, confidentialité et conformité
 
-Traité dans `docs/security-and-compliance.md` : données fictives, authentification et sessions, contrôle d'accès par rôle sur chaque route, consentement horodaté bloquant, WebSockets authentifiés avec vérification d'origine, salle vidéo réservée, chiffrement média WebRTC natif, absence d'enregistrement vidéo, politique de sécurité du contenu (CSP) et échappement systématique des noms saisis par les utilisateurs (protection XSS), verrouillage après échecs de connexion, limitation des inscriptions, limites explicites avant tout déploiement réel, et correspondance article par article avec la loi 131-13 (articles 99 à 102) et la loi 09-08.
+Traité dans `docs/security-and-compliance.md` : données fictives, authentification et sessions, contrôle d'accès par rôle sur chaque route, consentement horodaté bloquant, WebSockets authentifiés avec vérification d'origine, salle vidéo réservée, chiffrement média WebRTC natif, absence d'enregistrement vidéo, politique de sécurité du contenu (CSP) et échappement systématique des noms saisis par les utilisateurs (protection XSS), verrouillage après échecs de connexion, limitation des inscriptions, HTTPS imposé et HSTS, limites explicites avant tout déploiement réel, et correspondance article par article avec la loi 131-13 (articles 99 à 102) et la loi 09-08.
 
 ## 7. Conclusion
 

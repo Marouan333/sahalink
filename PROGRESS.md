@@ -55,5 +55,6 @@ A review against the assignment PDF found five gaps, now closed:
 - [x] Synchronised architecture, BPMN, technical report and data docs with the authenticated, doctor-initiated workflow (they described the old shared-room design).
 - [x] Added a formal needs table, an entity-relationship diagram, a permissions matrix, a presentation plan with demo script and Q&A, and a usability (SUS) protocol.
 - [x] Done: patient registration, doctor patient list, per-patient dashboard, four vital-sign charts with threshold lines, login lockout, sign-up rate limit, CSP and output escaping, accented French everywhere, 35 automated tests.
-- [ ] Open: SUS results from real testers, slide deck, reading the Loi 09-08 and WHO report to cite exact articles and findings.
+- [x] Loi 09-08 read from the official text (articles 1, 3, 4, 5, 7 to 9, 12, 21 to 24 mapped); WHO report read in full and its findings used; HTTPS enforcement and HSTS added; 37 tests.
+- [ ] Open: SUS results from real testers.
 

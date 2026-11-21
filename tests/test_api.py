@@ -361,6 +361,25 @@ class SahaLinkApiTests(unittest.TestCase):
         self.assertEqual(page.headers["x-content-type-options"], "nosniff")
         self.assertNotIn("content-security-policy", self.client.get("/api/health").headers)
 
+    def test_hsts_is_sent_only_over_https(self):
+        secure = self.client.get("/api/health", headers={"x-forwarded-proto": "https"})
+        self.assertIn("max-age=", secure.headers["strict-transport-security"])
+        self.assertNotIn("strict-transport-security", self.client.get("/api/health").headers)
+
+    def test_http_is_redirected_to_https_when_enforcement_is_on(self):
+        os.environ["SAHALINK_FORCE_HTTPS"] = "1"
+        try:
+            redirect = self.client.get("/", follow_redirects=False)
+            self.assertEqual(redirect.status_code, 308)
+            self.assertTrue(redirect.headers["location"].startswith("https://"))
+            self.assertEqual(self.client.get("/api/health", follow_redirects=False).status_code, 200)
+            proxied = self.client.get("/", headers={"x-forwarded-proto": "https"}, follow_redirects=False)
+            self.assertEqual(proxied.status_code, 200)
+            local = self.client.get("http://127.0.0.1/", follow_redirects=False)
+            self.assertEqual(local.status_code, 200)
+        finally:
+            del os.environ["SAHALINK_FORCE_HTTPS"]
+
     def test_tests_do_not_touch_the_demo_database(self):
         self.assertNotEqual(Path(DATABASE_PATH).name, "telecare.db")
 

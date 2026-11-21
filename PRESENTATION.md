@@ -53,7 +53,7 @@ Répartition issue du plan d'équipe. Chacun doit savoir ouvrir ces fichiers et 
 7. **Démonstration** : voir le script ci-dessous.
 8. **Alertes et données** : seuils (tension systolique >= 180 ou diastolique >= 120, SpO2 < 90 %, fréquence cardiaque < 45 ou > 130, température >= 39 degrés), envoi au médecin seul, données entièrement fictives et documentées.
 9. **Sécurité** : mots de passe hachés (PBKDF2), sessions à jeton révocable, rôles contrôlés par le serveur sur chaque route, consentement bloquant (HTTP 409), WebSockets authentifiés avec vérification d'origine, salle vidéo liée à un médecin et un patient, verrouillage après échecs de connexion, protection XSS (échappement et CSP). Tableau article par article de la loi 131-13.
-10. **Validation** : 35 tests automatisés, 6 profils cliniques détectés sur 6, 3 valeurs impossibles rejetées sur 3, latences mesurées (médiane d'écriture 30,9 ms), scénario complet dans deux fenêtres, score SUS avec des testeurs (à ajouter quand disponible).
+10. **Validation** : 37 tests automatisés, 6 profils cliniques détectés sur 6, 3 valeurs impossibles rejetées sur 3, latences mesurées (médiane d'écriture 30,9 ms), scénario complet dans deux fenêtres, score SUS avec des testeurs (à ajouter quand disponible).
 11. **Limites** : pas de second facteur, comptes de démonstration, un seul compte médecin, STUN public sans relais TURN, capture caméra testée à la main, pas de validation clinique des seuils.
 12. **Conclusion** : le prototype valide le parcours complet sans prétendre remplacer une plateforme médicale certifiée.
 
@@ -103,7 +103,10 @@ Cas dégradés optionnels si le temps le permet : essayer une valeur impossible 
 | Pourquoi SQLite alors que le plan prévoyait PostgreSQL ? | Choix assumé : sans installation, reproductible, suffisant pour un serveur unique. L'accès passe par une seule fonction de connexion ; PostgreSQL serait nécessaire pour plusieurs serveurs ou une forte charge simultanée. |
 | Comment le consentement est-il appliqué ? | Il est enregistré avec date et finalité ; le serveur refuse de démarrer une consultation si le dernier consentement n'est pas une acceptation (HTTP 409). Cela répond à l'art. 101 de la loi 131-13 : consentement exprès, libre, éclairé, électronique accepté, droit de refus. |
 | Que dit la loi 131-13 sur la télémédecine ? | Section 4, art. 99 à 102 : télémédecine autorisée, y compris la surveillance des patients, sous réserve de la protection des données (99) ; actes et identité du médecin consignés (100) ; consentement du patient (101) ; conditions techniques fixées par règlement (102). |
-| Que fait la loi 09-08 ? | Elle protège les données personnelles : consentement, droits d'information, d'accès, de rectification et d'opposition, sécurité et confidentialité, contrôle par la CNDP. Les données de santé sont sensibles. Relire le texte pour citer les articles. |
+| Que fait la loi 09-08 ? | Elle protège les données personnelles. Les données de santé sont des données sensibles (art. 1). Le consentement doit être indubitable (art. 4). Droit à l'information (art. 5), d'accès, de rectification et d'opposition (art. 7 à 9). Les données de santé exigent une autorisation de la CNDP, ou une déclaration pour les soins par un praticien tenu au secret (art. 12, 21, 22). Mesures de sécurité (art. 23) et huit contrôles pour les données de santé (art. 24). |
+| Quel article de la loi 09-08 justifie votre sécurité ? | L'article 24 : contrôle d'accès, d'utilisation, de transmission et de transport. Chez nous : rôles sur chaque route, sessions, WebSockets authentifiés, HTTPS imposé avec HSTS, média chiffré par WebRTC. |
+| Que dit le rapport de l'OMS ? | Il définit la télémédecine par quatre éléments (soutien clinique, distance, TIC, résultats). 114 pays ont répondu (59 %). Seuls 20 % des pays ont une évaluation publiée, d'où notre évaluation chiffrée. Le coût est l'obstacle le plus cité ; les obstacles juridiques de confidentialité comptent beaucoup dans les pays développés. |
+| Le trafic est-il chiffré ? | La vidéo l'est par WebRTC (DTLS/SRTP). Le reste passe en HTTPS grâce au proxy ou au tunnel TLS ; l'application impose HTTPS (redirection) et envoie HSTS. Les données au repos ne sont pas chiffrées. |
 | Comment sont stockés les mots de passe ? | Hachés avec PBKDF2-SHA256, 200 000 itérations, sel aléatoire par compte, comparaison en temps constant. Les jetons de session sont stockés sous forme d'empreinte SHA-256. |
 | Qu'est-ce qui empêche un patient de voir un autre dossier ou les alertes ? | Le serveur contrôle le rôle et l'identité sur chaque route (403). Les menus masqués ne sont qu'un confort. Tests V7 et V8. |
 | Comment sont choisis les seuils ? | Valeurs usuelles simplifiées pour la démonstration ; ils ne sont pas validés cliniquement et devraient l'être avec un médecin. Le taux de détection de 100 % mesure la correction du code, pas la sensibilité clinique. |
@@ -116,12 +119,12 @@ Cas dégradés optionnels si le temps le permet : essayer une valeur impossible 
 ## À relire avant l'oral
 
 - **Loi 131-13**, section 4, articles 99 à 102 : lire le texte (Bulletin officiel n° 6344, lien dans la note de sécurité) pour pouvoir répondre sans notes.
-- **Loi 09-08** : relire les articles sur le consentement, les données sensibles, les droits des personnes, la sécurité et la déclaration ou l'autorisation auprès de la CNDP, pour citer les numéros exacts. Les numéros d'articles ne sont volontairement pas cités ici car le texte n'a pas pu être consulté.
-- **Rapport de l'OMS** : le lire, retenir deux ou trois constats précis avec leur chiffre, et vérifier le titre et l'année exacts sur le site de l'observatoire.
+- **Loi 09-08** : lire dans le texte officiel les articles 1, 3, 4, 5, 7 à 9, 12, 21 à 24 déjà résumés dans `docs/security-and-compliance.md`, surtout l'article 24 (sécurité des données de santé).
+- **Rapport de l'OMS** : retenir les constats chiffrés déjà extraits (114 pays, 59 %, 33 % de téléradiologie, 30 % d'agences nationales, 20 % d'évaluations publiées) et la définition en quatre éléments.
 - **Votre propre code** : chaque membre ouvre ses fichiers du tableau et sait dérouler un appel de bout en bout.
 
 ## Chiffres à connaître
 
-- 35 tests automatisés, tous réussis ; 100 % de détection sur 6 profils ; 100 % de rejet sur 3 valeurs impossibles.
+- 37 tests automatisés, tous réussis ; 100 % de détection sur 6 profils ; 100 % de rejet sur 3 valeurs impossibles.
 - Latences locales (voir réserves dans `docs/validation.md`) : écriture d'une mesure, médiane 30,9 ms ; création d'alerte, moyenne 25,8 ms ; acquittement, moyenne 28,2 ms.
 - 7 tables, 2 comptes de démonstration plus inscription libre (200 comptes maximum), 2 participants maximum par salle, sessions de 8 heures.
