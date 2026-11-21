@@ -1,16 +1,19 @@
-# SahaLink - Teleconsultation et suivi a distance
+# SahaLink - Téléconsultation et suivi à distance
 
-Prototype demonstrable for the ENSAM course *Sante digitale et ingenierie des systemes de sante*.
+Prototype demonstrable for the ENSAM course *Santé digitale et ingénierie des systèmes de santé*.
 
 ## Features
 
-- Login with role-based access: the doctor and the patient each see only their own workspace, and the API enforces the same rules
+- Patient self-registration (role forced to patient by the server) and login with lockout after repeated failures
+- Role-based access: the doctor and the patient each see only their own workspace, and the API enforces the same rules
 - Consent capture with a timestamp and explicit purpose; a teleconsultation cannot start without it
 - Doctor-initiated teleconsultation: the patient receives a live invitation and joins with one click
-- Entry and longitudinal display of simulated vital signs
+- Doctor patient list with open alerts, consent state and last reading per patient
+- Entry and longitudinal display of simulated vital signs, with four small charts (blood pressure, heart rate, SpO2, temperature) and threshold lines
 - Configurable clinical alert rules for blood pressure, heart rate, oxygen saturation, and temperature
 - Real-time alert delivery with WebSockets
 - WebRTC video room and signaling endpoint for a two-browser demo
+- Content-Security-Policy, escaped user-supplied names and rate limiting on sign-up and login
 - French clinical interface designed for desktop and mobile
 
 ## Quick start
@@ -38,15 +41,15 @@ Both accounts are fictitious and seeded automatically on first start. The login 
 Each browser tab keeps its own session, so the doctor and the patient can be logged in side by side in two tabs or windows of the same browser. The video call needs a real camera and microphone, so run it in a normal browser rather than an automated or sandboxed one.
 
 1. Start the server (see Quick start above) and keep it running.
-2. Window 1: open <http://127.0.0.1:8000> and log in as the patient (`amal`).
-3. Window 2: open the same address and log in as the doctor (`dr.benali`).
-4. Doctor: click "Demarrer une consultation". It is refused with "Le patient n'a pas encore donne son consentement" because the patient has not consented yet.
-5. Patient: in "Mon suivi", tick the consent box and click "Enregistrer mon accord". The doctor's dashboard now shows the consent as "Confirme".
-6. Patient: send a normal reading, then click "Simuler une alerte" and send the critical reading. The doctor receives the alert live (toast, bell counter, alert card) and acknowledges it.
-7. Doctor: click "Demarrer une consultation" and allow the camera. The patient's window immediately shows "Dr. Benali vous invite en teleconsultation".
-8. Patient: click "Rejoindre" and allow the camera. Within a few seconds each window shows the other participant full-size and its own image in the corner, with the status "Consultation connectee".
+2. Window 1: open <http://127.0.0.1:8000> and log in as the patient (`amal`), or click "Créer un compte" to register a new fictitious patient.
+3. Window 2: open the same address and log in as the doctor (`dr.benali`). Pick the patient in the patient list on the left.
+4. Doctor: click "Démarrer une consultation". It is refused with "Le patient n'a pas encore donné son consentement" because the patient has not consented yet.
+5. Patient: in "Mon suivi", tick the consent box and click "Enregistrer mon accord". The doctor's dashboard now shows the consent as "Confirmé".
+6. Patient: send a normal reading, then click "Simuler une alerte" and send the critical reading. The doctor receives the alert live (toast, bell counter, alert card, chart points above the threshold lines) and acknowledges it.
+7. Doctor: click "Démarrer une consultation" and allow the camera. The patient's window immediately shows "Dr. Benali vous invite en téléconsultation".
+8. Patient: click "Rejoindre" and allow the camera. Within a few seconds each window shows the other participant full-size and its own image in the corner, with the status "Consultation connectée".
 9. Try the controls: mute the microphone, turn the camera off (the other side is told), or switch camera from the list.
-10. Doctor: click "Terminer". The patient is told "Le medecin a termine la consultation" and both cameras turn off.
+10. Doctor: click "Terminer". The patient is told "Le médecin a terminé la consultation" and both cameras turn off.
 
 Camera selection: phone-as-webcam drivers such as Camo, Iriun, DroidCam or OBS register as extra cameras and show a black frame or a logo when their phone app is not connected. The app therefore ranks physical webcams first, checks each candidate for a real (non-black) image before using it, and remembers the camera that worked. The "Camera" list in the consultation panel marks virtual cameras and switches camera live during a call. If one side sees a black image, the status line says whether the problem is the local camera or the other participant's.
 

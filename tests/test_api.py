@@ -55,6 +55,17 @@ class SahaLinkApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 201, response.text)
         return response.json()
 
+    @staticmethod
+    def events_until(socket, wanted, limit=10):
+        """Read events until one of the wanted type arrives; return it and every type seen before."""
+        seen = []
+        for _ in range(limit):
+            event = json.loads(socket.receive_text())
+            if event["type"] == wanted:
+                return event, seen
+            seen.append(event["type"])
+        raise AssertionError(f"Aucun evenement {wanted} parmi {seen}")
+
     def join_room(self, room, token):
         socket = self.client.websocket_connect(f"/ws/signaling/{room}")
         peer = socket.__enter__()
@@ -149,14 +160,15 @@ class SahaLinkApiTests(unittest.TestCase):
             self.assertEqual(json.loads(events.receive_text())["type"], "auth-ok")
             self.client.post("/api/patients/1/vitals", json=CRITICAL_VITAL, headers=self.auth(self.patient_token))
             self.start_consultation()
-            self.assertEqual(json.loads(events.receive_text())["type"], "invitation")
+            _, seen_before_invitation = self.events_until(events, "invitation")
+        self.assertFalse({"alert", "vital", "consent"} & set(seen_before_invitation))
 
     def test_patient_sees_the_invitation(self):
         with self.client.websocket_connect("/ws/events") as events:
             events.send_text(json.dumps({"type": "auth", "token": self.patient_token}))
             self.assertEqual(json.loads(events.receive_text())["type"], "auth-ok")
             consultation = self.start_consultation()
-            invitation = json.loads(events.receive_text())
+            invitation, _ = self.events_until(events, "invitation")
         self.assertEqual(invitation["type"], "invitation")
         self.assertEqual(invitation["consultation"]["room"], consultation["room"])
         active = self.client.get("/api/consultations/active", headers=self.auth(self.patient_token)).json()
@@ -234,6 +246,120 @@ class SahaLinkApiTests(unittest.TestCase):
         with self.assertRaises(WebSocketDisconnect):
             with self.client.websocket_connect("/ws/events", headers={"origin": "https://evil.example.com"}):
                 pass
+
+    def register(self, username, name="Karim Benjelloun", year=1985, password="Motdepasse-2026", **extra):
+        return self.client.post(
+            "/api/auth/register",
+            json={"username": username, "display_name": name, "birth_year": year, "password": password, **extra},
+        )
+
+    def test_a_visitor_can_register_as_a_patient_and_is_logged_in(self):
+        response = self.register("karim.b")
+        self.assertEqual(response.status_code, 201, response.text)
+        session = response.json()
+        self.assertEqual((session["user"]["role"], session["user"]["display_name"]), ("patient", "Karim Benjelloun"))
+        self.assertNotIn(session["user"]["patient_id"], (None, 1))
+        own = self.client.get(f"/api/patients/{session['user']['patient_id']}/vitals", headers=self.auth(session["token"]))
+        self.assertEqual((own.status_code, own.json()), (200, []))
+        self.assertEqual(self.client.get("/api/patients/1/vitals", headers=self.auth(session["token"])).status_code, 403)
+        self.assertEqual(self.login("karim.b", "Motdepasse-2026") != "", True)
+
+    def test_registration_is_validated(self):
+        self.register("dupli.cate")
+        self.assertEqual(self.register("dupli.cate").status_code, 409)
+        self.assertEqual(self.register("DUPLI.CATE").status_code, 409)
+        self.assertEqual(self.register("ab").status_code, 422)
+        self.assertEqual(self.register("bad name").status_code, 422)
+        self.assertEqual(self.register("pw.short", password="court").status_code, 422)
+        self.assertEqual(self.register("birth.year", year=1850).status_code, 422)
+        self.assertEqual(self.register("html.name", name="<script>alert(1)</script>").status_code, 422)
+        self.assertEqual(self.register("html.plan", care_plan="<img src=x>").status_code, 422)
+
+    def test_a_visitor_cannot_choose_the_doctor_role(self):
+        response = self.register("sneaky.doctor", role="doctor", patient_id=1)
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()["user"]["role"], "patient")
+        self.assertNotEqual(response.json()["user"]["patient_id"], 1)
+
+    def test_doctor_lists_patients_and_a_patient_cannot(self):
+        self.register("liste.patient", name="Salma Rhazi")
+        listing = self.client.get("/api/patients", headers=self.auth(self.doctor_token))
+        self.assertEqual(listing.status_code, 200)
+        self.assertIn("Salma Rhazi", [row["full_name"] for row in listing.json()])
+        self.assertEqual(self.client.get("/api/patients", headers=self.auth(self.patient_token)).status_code, 403)
+        self.assertEqual(self.client.get("/api/patients").status_code, 401)
+
+    def test_dashboard_follows_the_selected_patient(self):
+        other = self.register("dash.patient", name="Youssef Alami").json()
+        patient_id = other["user"]["patient_id"]
+        self.client.post(f"/api/patients/{patient_id}/vitals", json=NORMAL_VITAL, headers=self.auth(other["token"]))
+        dashboard = self.client.get(f"/api/dashboard?patient_id={patient_id}", headers=self.auth(self.doctor_token)).json()
+        self.assertEqual(dashboard["patient"]["full_name"], "Youssef Alami")
+        self.assertEqual(dashboard["latest_vital"]["patient_id"], patient_id)
+        self.assertIsNone(dashboard["latest_consent"])
+        self.assertEqual(self.client.get("/api/dashboard?patient_id=99999", headers=self.auth(self.doctor_token)).status_code, 404)
+
+    def test_doctor_is_told_when_a_patient_registers(self):
+        with self.client.websocket_connect("/ws/events") as events:
+            events.send_text(json.dumps({"type": "auth", "token": self.doctor_token}))
+            events.receive_text()
+            patient_id = self.register("live.patient", name="Nadia Tazi").json()["user"]["patient_id"]
+            event = json.loads(events.receive_text())
+        self.assertEqual((event["type"], event["patient_id"]), ("patient-registered", patient_id))
+
+    def test_starting_a_consultation_with_another_patient_ends_the_previous_one(self):
+        second = self.register("second.patient", name="Hind Cherkaoui").json()
+        self.client.post(
+            f"/api/patients/{second['user']['patient_id']}/consents",
+            json={"accepted": True, "purpose": "Teleconsultation pedagogique et suivi des constantes."},
+            headers=self.auth(second["token"]),
+        )
+        first_room = self.start_consultation()["room"]
+        with self.client.websocket_connect("/ws/events") as events:
+            events.send_text(json.dumps({"type": "auth", "token": self.patient_token}))
+            events.receive_text()
+            new_room = self.client.post(
+                "/api/consultations", json={"patient_id": second["user"]["patient_id"]}, headers=self.auth(self.doctor_token)
+            ).json()["room"]
+            ended, _ = self.events_until(events, "consultation-ended")
+        self.assertEqual(ended["room"], first_room)
+        self.assertIsNone(self.client.get("/api/consultations/active", headers=self.auth(self.patient_token)).json())
+        self.assertEqual(self.client.get("/api/consultations/active", headers=self.auth(second["token"])).json()["room"], new_room)
+
+    def test_login_is_locked_after_repeated_failures(self):
+        from app.main import login_limiter
+
+        login_limiter.reset()
+        try:
+            codes = [
+                self.client.post("/api/auth/login", json={"username": "lockout.user", "password": "wrong"}).status_code
+                for _ in range(10)
+            ]
+            self.assertEqual(codes[:8], [401] * 8)
+            self.assertEqual(codes[8:], [429, 429])
+            self.assertEqual(self.client.post("/api/auth/login", json={"username": "amal", "password": DEMO_PASSWORD}).status_code, 200)
+        finally:
+            login_limiter.reset()
+
+    def test_registration_is_rate_limited_per_address(self):
+        from app.main import register_limiter
+
+        register_limiter.reset()
+        try:
+            codes = [self.register(f"flood.{index}").status_code for index in range(12)]
+            self.assertEqual(codes[:10], [201] * 10)
+            self.assertEqual(codes[10:], [429, 429])
+        finally:
+            register_limiter.reset()
+
+    def test_pages_carry_a_strict_content_security_policy(self):
+        page = self.client.get("/")
+        policy = page.headers["content-security-policy"]
+        self.assertIn("script-src 'self'", policy)
+        self.assertNotIn("unsafe-inline", policy)
+        self.assertEqual(page.headers["x-frame-options"], "DENY")
+        self.assertEqual(page.headers["x-content-type-options"], "nosniff")
+        self.assertNotIn("content-security-policy", self.client.get("/api/health").headers)
 
     def test_tests_do_not_touch_the_demo_database(self):
         self.assertNotEqual(Path(DATABASE_PATH).name, "telecare.db")

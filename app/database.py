@@ -109,7 +109,12 @@ def initialize_database():
         if not patient:
             db.execute(
                 "INSERT INTO patients (id, full_name, birth_year, care_plan) VALUES (1, ?, ?, ?)",
-                ("Amal El Idrissi", 1972, "Suivi hypertension arterielle"),
+                ("Amal El Idrissi", 1972, "Suivi hypertension artérielle"),
+            )
+        else:
+            # Databases created before the accent pass keep an unaccented care plan.
+            db.execute(
+                "UPDATE patients SET care_plan = 'Suivi hypertension artérielle' WHERE id = 1 AND care_plan = 'Suivi hypertension arterielle'"
             )
         vital = db.execute("SELECT id FROM vitals WHERE patient_id = 1 LIMIT 1").fetchone()
         if not vital:

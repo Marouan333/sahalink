@@ -19,7 +19,7 @@ Build and demonstrate a deliberately scoped teleconsultation prototype for the E
 
 ## Scope decisions
 
-- The prototype uses SQLite by default so it runs locally without infrastructure. `DATABASE_URL` is reserved for a future PostgreSQL deployment.
+- The prototype keeps SQLite on purpose (no installation, reproducible demo, enough for a single server). PostgreSQL is a documented future step, not implemented.
 - Data is synthetic and seeded locally. No real patient data or account credentials are used.
 - Video is browser-to-browser WebRTC. The FastAPI WebSocket endpoint relays signaling messages only; media does not transit the application server.
 - Authentication is real username/password login with hashed passwords, server sessions and role checks on every route (added 2026-11-17). It is still simple authentication, not production identity verification. Controls and limits are documented in `docs/security-and-compliance.md`.
@@ -54,5 +54,6 @@ A review against the assignment PDF found five gaps, now closed:
 - [x] Corrected the Loi 131-13 citation after reading the law's text: telemedicine is section 4, articles 99 to 102 (the earlier "art. 2 and 98 to 106" was wrong). Replaced a dead WHO link and removed unverifiable claims about the WHO report's content.
 - [x] Synchronised architecture, BPMN, technical report and data docs with the authenticated, doctor-initiated workflow (they described the old shared-room design).
 - [x] Added a formal needs table, an entity-relationship diagram, a permissions matrix, a presentation plan with demo script and Q&A, and a usability (SUS) protocol.
-- [ ] Open: doctor-side vital-sign chart, SUS results from real testers, accented French text, slide deck.
+- [x] Done: patient registration, doctor patient list, per-patient dashboard, four vital-sign charts with threshold lines, login lockout, sign-up rate limit, CSP and output escaping, accented French everywhere, 35 automated tests.
+- [ ] Open: SUS results from real testers, slide deck, reading the Loi 09-08 and WHO report to cite exact articles and findings.
 

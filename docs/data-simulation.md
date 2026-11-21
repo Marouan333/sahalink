@@ -1,36 +1,38 @@
-# Donnees simulees
+# Données simulées
 
-## Regle de projet
+## Règle de projet
 
-Le prototype ne contient aucune donnee de patient reel. Toutes les donnees sont fictives et locales.
+Le prototype ne contient aucune donnée de patient réel. Toutes les données sont fictives et locales.
 
-## Jeu de demonstration
+## Jeu de démonstration
 
 | Champ | Valeur initiale | Origine |
 |---|---:|---|
 | Patient | Amal El Idrissi, 54 ans | Persona fictive |
-| Parcours | Suivi hypertension arterielle | Scenario pedagogique |
-| Tension | 128 / 78 mmHg | Mesure simulee normale |
-| Frequence cardiaque | 72 bpm | Mesure simulee normale |
-| SpO2 | 98 % | Mesure simulee normale |
-| Temperature | 36.7 deg C | Mesure simulee normale |
+| Parcours | Suivi hypertension artérielle | Scénario pédagogique |
+| Tension | 128 / 78 mmHg | Mesure simulée normale |
+| Fréquence cardiaque | 72 bpm | Mesure simulée normale |
+| SpO2 | 98 % | Mesure simulée normale |
+| Température | 36.7 °C | Mesure simulée normale |
 
-## Comptes de demonstration
+## Comptes de démonstration
 
-Deux comptes fictifs sont crees automatiquement au premier demarrage (`app/database.py`). Ils ne correspondent a aucune personne reelle et leur mot de passe est public.
+Deux comptes fictifs sont créés automatiquement au premier démarrage (`app/database.py`). Ils ne correspondent à aucune personne réelle et leur mot de passe est public.
 
-| Role | Identifiant | Nom affiche | Dossier lie |
+| Rôle | Identifiant | Nom affiché | Dossier lié |
 |---|---|---|---|
-| Medecin | `dr.benali` | Dr. Benali | aucun |
+| Médecin | `dr.benali` | Dr. Benali | aucun |
 | Patient | `amal` | Amal El Idrissi | patient n° 1 |
 
-Les mots de passe sont stockes hache (PBKDF2-SHA256, sel aleatoire par compte). Le patient, sa mesure de depart et les comptes sont generes une seule fois par le code de demarrage ; les mesures suivantes viennent de la saisie des testeurs (`source = manual`) ou du bouton « Simuler une alerte » (valeurs pre-remplies).
+Les patients qui s'inscrivent eux-mêmes créent un compte et un dossier supplémentaires (nom, année de naissance, motif du suivi : valeurs fictives saisies par le testeur ; aucun autre champ personnel n'est demandé). Ces comptes sont plafonnés à 200.
 
-## Cas degrade valide pendant la demonstration
+Les mots de passe sont stockés hachés (PBKDF2-SHA256, sel aléatoire par compte). Le patient, sa mesure de départ et les comptes sont générés une seule fois par le code de démarrage ; les mesures suivantes viennent de la saisie des testeurs (`source = manual`) ou du bouton « Simuler une alerte » (valeurs pré-remplies).
 
-Le bouton **Simuler une alerte** pre-remplit une mesure critique : tension 188/122 mmHg, frequence cardiaque 138 bpm, SpO2 89 % et temperature 39.2 deg C. L'envoi de cette mesure doit creer et diffuser une alerte clinique au medecin.
+## Cas dégradé valide pendant la démonstration
 
-## Traçabilite
+Le bouton **Simuler une alerte** pré-remplit une mesure critique : tension 188/122 mmHg, fréquence cardiaque 138 bpm, SpO2 89 % et température 39.2 °C. L'envoi de cette mesure doit créer et diffuser une alerte clinique au médecin.
 
-Chaque constante conserve sa source (`manual` ou `simulated`) et sa date. Chaque consentement et chaque alerte possedent egalement un horodatage UTC.
+## Traçabilité
+
+Chaque constante conserve sa source (`manual` ou `simulated`) et sa date. Chaque consentement et chaque alerte possèdent également un horodatage UTC.
 

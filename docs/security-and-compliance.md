@@ -1,68 +1,71 @@
-# Securite, confidentialite et conformite
+# Sécurité, confidentialité et conformité
 
-## Mesures effectivement implementees dans le prototype
+## Mesures effectivement implémentées dans le prototype
 
-- Donnees strictement fictives et locales.
-- Authentification par identifiant et mot de passe ; les mots de passe sont stockes haches (PBKDF2-SHA256, 200 000 iterations, sel aleatoire par compte) et compares en temps constant.
-- Sessions serveur de 8 heures : le jeton aleatoire n'est conserve en base que sous forme d'empreinte SHA-256, et la deconnexion le revoque immediatement.
-- Controle d'acces par role sur chaque route : le patient n'accede qu'a son propre dossier, seul le medecin consulte et acquitte les alertes, seul le patient concerne donne ou retire son consentement.
-- Consentement explicite, accepte ou refuse, avec objet et horodatage ; une teleconsultation ne peut pas demarrer sans consentement valide du patient (refus HTTP 409).
-- WebSockets authentifies : le jeton est transmis dans le premier message, jamais dans l'URL, et l'origine de la page est verifiee pour bloquer le detournement de WebSocket depuis un autre site.
-- Salle video reservee : seul le medecin et le patient de la consultation ouverte peuvent y entrer, deux participants au maximum ; le code de salle est aleatoire et genere par le serveur.
+- Données strictement fictives et locales.
+- Authentification par identifiant et mot de passe ; les mots de passe sont stockés hachés (PBKDF2-SHA256, 200 000 itérations, sel aléatoire par compte) et comparés en temps constant.
+- Sessions serveur de 8 heures : le jeton aléatoire n'est conservé en base que sous forme d'empreinte SHA-256, et la déconnexion le revoque immédiatement.
+- Contrôle d'accès par rôle sur chaque route : le patient n'accède qu'à son propre dossier, seul le médecin consulte et acquitte les alertes, seul le patient concerné donne ou retiré son consentement.
+- Consentement explicite, accepté ou refusé, avec objet et horodatage ; une téléconsultation ne peut pas démarrer sans consentement valide du patient (refus HTTP 409).
+- WebSockets authentifiés : le jeton est transmis dans le premier message, jamais dans l'URL, et l'origine de la page est vérifiée pour bloquer le détournement de WebSocket depuis un autre site.
+- Inscription patient contrôlée : le rôle est toujours « patient » (jamais choisi par le client), identifiant et nom validés côté serveur, noms contenant du balisage refusés, mot de passe d'au moins 8 caractères, 10 inscriptions par heure et par adresse, 200 comptes au maximum.
+- Verrouillage après échecs : 8 connexions échouées en 5 minutes pour un même couple adresse et identifiant entraînent un refus temporaire (HTTP 429).
+- Protection XSS : les noms saisis par les patients arrivent sur l'écran du médecin ; ils sont validés, échappés avant tout affichage, et une politique de sécurité du contenu (CSP) interdit les scripts en ligne, les scripts externes et les connexions vers d'autres hôtes. En-têtes complémentaires : `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `Permissions-Policy` limitée à la caméra et au microphone.
+- Salle vidéo réservée : seul le médecin et le patient de la consultation ouverte peuvent y entrer, deux participants au maximum ; le code de salle est aléatoire et généré par le serveur.
 - Validation serveur des valeurs de constantes.
-- WebRTC chiffre les medias entre pairs avec DTLS/SRTP lorsque le navigateur etablit la connexion.
-- Aucune video n'est enregistree par l'application.
-- Les alertes peuvent etre acquittees pour demonstrer le suivi organisationnel.
+- WebRTC chiffre les médias entre pairs avec DTLS/SRTP lorsque le navigateur établit la connexion.
+- Aucune vidéo n'est enregistrée par l'application.
+- Les alertes peuvent être acquittées pour démontrer le suivi organisationnel.
 
 ## Limites connues
 
-Ce prototype n'est pas un dispositif medical ni une plateforme prete a recevoir des donnees reelles. Avant tout usage reel, il faut au minimum :
+Ce prototype n'est pas un dispositif médical ni une plateforme prête à recevoir des données réelles. Avant tout usage réel, il faut au minimum :
 
-- une authentification multifacteur, un verrouillage apres echecs repetes et un journal d'audit inviolable des acces ;
-- un jeton de session en cookie `HttpOnly` et `Secure` plutot que dans le stockage de l'onglet : le prototype garde le jeton par onglet pour permettre de demontrer le medecin et le patient dans un meme navigateur, au prix d'une exposition plus forte en cas de faille XSS ;
-- des comptes reels geres par l'etablissement, a la place des deux comptes de demonstration dont le mot de passe est public ;
-- HTTPS, chiffrement des donnees au repos, rotation des secrets et sauvegardes ;
+- une authentification multifacteur, un verrouillage partagé entre serveurs (celui du prototype est en mémoire d'un seul serveur) et un journal d'audit inviolable des accès ;
+- un jeton de session en cookie `HttpOnly` et `Secure` plutôt que dans le stockage de l'onglet : le prototype garde le jeton par onglet pour permettre de démontrer le médecin et le patient dans un même navigateur, au prix d'une exposition plus forte en cas de faille XSS ;
+- des comptes réels gérés par l'établissement, avec vérification de l'identité et du statut de médecin, à la place des comptes de démonstration (mot de passe public) et de l'inscription libre des patients ;
+- HTTPS, chiffrement des données au repos, rotation des secrets et sauvegardes ;
 - une analyse d'impact, des politiques de conservation et l'exercice des droits des personnes ;
-- une validation clinique des seuils et une gouvernance medicale ;
-- un hebergement, des contrats et des procedures conformes aux exigences applicables.
+- une validation clinique des seuils et une gouvernance médicale ;
+- un hébergement, des contrats et des procédures conformes aux exigences applicables.
 
-## Cadre a presenter
+## Cadre à présenter
 
 Deux textes marocains encadrent le projet :
 
-- la **loi 09-08** relative a la protection des personnes physiques a l'egard du traitement des donnees a caractere personnel (dahir n° 1-09-15 du 18 fevrier 2009, controle par la CNDP) ;
-- la **loi 131-13** relative a l'exercice de la medecine (dahir n° 1-15-26 du 19 fevrier 2015, B.O. n° 6344 du 19 mars 2015), dont la section 4 est consacree a la telemedecine.
+- la **loi 09-08** relative à la protection des personnes physiques à l'égard du traitement des données à caractère personnel (dahir n° 1-09-15 du 18 février 2009, contrôle par la CNDP) ;
+- la **loi 131-13** relative à l'exercice de la médecine (dahir n° 1-15-26 du 19 février 2015, B.O. n° 6344 du 19 mars 2015), dont la section 4 est consacrée à la télémédecine.
 
-Les exigences concretes doivent etre validees avec les sources officielles et les responsables competents avant un deploiement reel.
+Les exigences concrètes doivent être validées avec les sources officielles et les responsables compétents avant un déploiement réel.
 
 ## Norme technique et institutionnelle du sujet
 
-Le sujet impose trois references normatives, toutes trois effectivement traitees dans ce prototype :
+Le sujet impose trois références normatives, toutes trois effectivement traitées dans ce prototype :
 
 | Norme | Application dans SahaLink |
 |---|---|
-| **Technologie WebRTC** | Flux media patient-medecin en pair-a-pair, chiffre DTLS/SRTP, signalisation SDP/ICE relayee par `/ws/signaling/{room}` apres authentification (voir `docs/architecture.md`). |
-| **Rapport de l'OMS, Global Observatory for eHealth** (*Telemedicine: opportunities and developments in Member States*, serie Global Observatory for eHealth, vol. 2, 2010) | Reference institutionnelle de contexte sur la telemedecine dans les Etats membres de l'OMS. SahaLink s'inscrit dans la definition de l'OMS : usage des technologies de l'information et de la communication pour echanger a distance des informations utiles au diagnostic, au traitement et au suivi, quand la distance est un facteur critique. Le prototype couvre deux usages : la consultation video patient-medecin et le suivi a distance de constantes avec alerte. |
-| **Loi marocaine 131-13**, section 4 *De la telemedecine* (articles 99 a 102) | Voir le detail article par article ci-dessous. |
+| **Technologie WebRTC** | Flux média patient-médecin en pair-à-pair, chiffré DTLS/SRTP, signalisation SDP/ICE relayée par `/ws/signaling/{room}` après authentification (voir `docs/architecture.md`). |
+| **Rapport de l'OMS, Global Observatory for eHealth** (*Telemedicine: opportunities and developments in Member States*, série Global Observatory for eHealth, vol. 2, 2010) | Référence institutionnelle de contexte sur la télémédecine dans les États membres de l'OMS. SahaLink s'inscrit dans la définition de l'OMS : usage des technologies de l'information et de la communication pour échanger à distance des informations utiles au diagnostic, au traitement et au suivi, quand la distance est un facteur critique. Le prototype couvre deux usages : la consultation vidéo patient-médecin et le suivi à distance de constantes avec alerte. |
+| **Loi marocaine 131-13**, section 4 *De la télémédecine* (articles 99 à 102) | Voir le détail article par article ci-dessous. |
 
-### Loi 131-13 : articles 99 a 102 et mise en oeuvre
+### Loi 131-13 : articles 99 à 102 et mise en œuvre
 
-Texte lu directement dans le Bulletin officiel n° 6344 (copie scannee du site du Ministere de la Sante).
+Texte lu directement dans le Bulletin officiel n° 6344 (copie scannée du site du Ministère de la Santé).
 
-| Article | Ce que dit la loi | Mise en oeuvre dans SahaLink | Limite connue |
+| Article | Ce que dit la loi | Mise en œuvre dans SahaLink | Limite connue |
 |---|---|---|---|
-| **99** | Les medecins et les etablissements de sante peuvent recourir a la telemedecine, dans le respect de la protection des donnees personnelles et de la confidentialite du dossier medical. La telemedecine permet notamment un diagnostic, un avis specialise ou *une surveillance de l'etat des patients*. | Suivi a distance des constantes avec alertes et teleconsultation video. Confidentialite : authentification, acces par role, WebSockets authentifies, salle video reservee au medecin et au patient. | Chiffrement des donnees au repos et HTTPS maitrise par l'hebergeur a prevoir pour un usage reel. |
-| **100** | Les actes de telemedecine, ainsi que l'identite et les qualifications des medecins intervenants, sont consignes dans le dossier medical du patient. | Table `consultations` (medecin, patient, debut, fin), plus constantes, alertes et consentements horodates. | Les qualifications du medecin (specialite, numero d'ordre) ne sont pas modelisees. |
-| **101** | Aucun acte de telemedecine sans consentement expres, libre et eclaire du patient, ecrit par tout moyen y compris electronique ; droit de refus ; pour un mineur ou une personne protegee, consentement du tuteur ou du representant legal. | Consentement electronique horodate avec finalite ; acceptation ou refus enregistres ; demarrage de la teleconsultation refuse tant que le dernier consentement n'est pas une acceptation (HTTP 409). | Pas de gestion du tuteur legal ni de consentement ecrit signe. |
-| **102** | Les actes de telemedecine et leurs conditions techniques sont fixes par voie reglementaire. | Renvoie a un texte reglementaire que le prototype ne traite pas. | A verifier aupres des sources officielles avant tout deploiement. |
+| **99** | Les médecins et les établissements de santé peuvent recourir à la télémédecine, dans le respect de la protection des données personnelles et de la confidentialité du dossier médical. La télémédecine permet notamment un diagnostic, un avis spécialisé ou *une surveillance de l'état des patients*. | Suivi à distance des constantes avec alertes et téléconsultation vidéo. Confidentialité : authentification, accès par rôle, WebSockets authentifiés, salle vidéo réservée au médecin et au patient. | Chiffrement des données au repos et HTTPS maîtrisé par l'hébergeur à prévoir pour un usage réel. |
+| **100** | Les actes de télémédecine, ainsi que l'identité et les qualifications des médecins intervenants, sont consignés dans le dossier médical du patient. | Table `consultations` (médecin, patient, début, fin), plus constantes, alertes et consentements horodatés. | Les qualifications du médecin (spécialité, numéro d'ordre) ne sont pas modélisées. |
+| **101** | Aucun acte de télémédecine sans consentement exprès, libre et éclairé du patient, écrit par tout moyen y compris électronique ; droit de refus ; pour un mineur ou une personne protégée, consentement du tuteur ou du représentant légal. | Consentement électronique horodaté avec finalité ; acceptation ou refus enregistrés ; démarrage de la téléconsultation refusé tant que le dernier consentement n'est pas une acceptation (HTTP 409). | Pas de gestion du tuteur légal ni de consentement écrit signé. |
+| **102** | Les actes de télémédecine et leurs conditions techniques sont fixés par voie réglementaire. | Renvoie à un texte réglementaire que le prototype ne traite pas. | À vérifier auprès des sources officielles avant tout déploiement. |
 
-Sources officielles de reference :
+Sources officielles de référence :
 
 - [CNDP - textes et lois, loi 09-08](https://www.cndp.ma/textes-et-lois/)
-- [Ministere de la Sante - loi 131-13 relative a l'exercice de la medecine](https://www.sante.gov.ma/Reglementation/PRATIQUEDESMETIERSDESANTEDANSLESECTEURPRIVE/Loi_131.13_Fr.pdf)
-- [OMS - Global Observatory for eHealth](https://www.who.int/observatories/global-observatory-for-ehealth) (page de l'observatoire, qui liste les enquetes mondiales dont celle de 2009)
+- [Ministère de la Santé - loi 131-13 relative à l'exercice de la médecine](https://www.sante.gov.ma/Reglementation/PRATIQUEDESMETIERSDESANTEDANSLESECTEURPRIVE/Loi_131.13_Fr.pdf)
+- [OMS - Global Observatory for eHealth](https://www.who.int/observatories/global-observatory-for-ehealth) (page de l'observatoire, qui liste les enquêtes mondiales dont celle de 2009)
 
-## Consentement dans le scenario
+## Consentement dans le scénario
 
-Le consentement est une etape visible avant la saisie de constantes. Le texte indique la finalite, le caractere pedagogique, l'utilisation de donnees simulees et la possibilite de ne pas accepter. Pour un usage reel, l'information patient, les finalites, la duree de conservation, les destinataires et les droits doivent etre plus detailles.
+Le consentement est une étape visible avant la saisie de constantes. Le texte indique la finalité, le caractère pédagogique, l'utilisation de données simulées et la possibilité de ne pas accepter. Pour un usage réel, l'information patient, les finalités, la durée de conservation, les destinataires et les droits doivent être plus détaillés.
 

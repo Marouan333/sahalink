@@ -8,6 +8,7 @@ Il ne verifie pas la camera : la capture video reste un test manuel.
 """
 import asyncio
 import json
+import secrets
 import sys
 import urllib.error
 import urllib.request
@@ -120,6 +121,28 @@ async def main():
     ended = await next_event(patient_events, "consultation-ended")
     check("Le patient est prevenu de la fin", ended["room"] == room)
     check("Plus aucune consultation active", call("GET", "/api/consultations/active", token=patient)[1] is None)
+
+    # Registration and a second patient (leaves one small test account in the database).
+    suffix = secrets.token_hex(3)
+    form = {"username": f"smoke.{suffix}", "display_name": f"Smoke Test {suffix.upper()}", "password": "Smoke-2026!", "birth_year": 1990, "care_plan": "Test automatique"}
+    check("Inscription avec role medecin ignore", call("POST", "/api/auth/register", {**form, "username": f"x.{suffix}", "role": "doctor"})[1]["user"]["role"] == "patient")
+    status, registered = call("POST", "/api/auth/register", form)
+    check("Inscription patient (201)", status == 201 and registered["user"]["role"] == "patient")
+    check("Identifiant deja pris refuse (409)", call("POST", "/api/auth/register", form)[0] == 409)
+    check("Nom avec balisage refuse (422)", call("POST", "/api/auth/register", {**form, "username": f"y.{suffix}", "display_name": "<script>x</script>"})[0] == 422)
+    new_token, new_id = registered["token"], registered["user"]["patient_id"]
+    check("Le patient ne peut pas lister les patients", call("GET", "/api/patients", token=new_token)[0] == 403)
+    listed = call("GET", "/api/patients", token=doctor)[1]
+    check("Le medecin voit le nouveau patient dans la liste", any(item["id"] == new_id for item in listed))
+    check("Tableau de bord d'un patient precis", call("GET", f"/api/dashboard?patient_id={new_id}", token=doctor)[1]["patient"]["id"] == new_id)
+    check("Demarrage refuse pour le nouveau patient sans consentement (409)", call("POST", "/api/consultations", {"patient_id": new_id}, doctor)[0] == 409)
+    call("POST", f"/api/patients/{new_id}/consents", {"accepted": True, "purpose": "Test automatique"}, new_token)
+    new_events, new_state = await authenticated_socket("/ws/events", new_token)
+    second = call("POST", "/api/consultations", {"patient_id": new_id}, doctor)[1]
+    check("Le nouveau patient recoit l'invitation", (await next_event(new_events, "invitation"))["consultation"]["room"] == second["room"])
+    check("Le medecin termine la consultation du nouveau patient", call("POST", f"/api/consultations/{second['room']}/end", token=doctor)[0] == 200)
+    await new_events.close()
+    call("POST", "/api/auth/logout", {}, new_token)
 
     for socket in (doctor_events, patient_events, doctor_room, patient_room, third, revoked):
         await socket.close()

@@ -36,9 +36,10 @@ Répartition issue du plan d'équipe. Chacun doit savoir ouvrir ces fichiers et 
 
 ### Écarts entre le plan d'équipe et le prototype (à assumer à l'oral)
 
-- **PostgreSQL** était prévu ; le prototype utilise **SQLite** pour qu'il fonctionne sans installation. Tout l'accès à la base passe par une seule fonction de connexion, donc le passage à PostgreSQL est localisé.
-- **Inscription du patient** : le prototype propose deux comptes de démonstration au lieu d'un formulaire d'inscription.
-- **Graphiques des constantes** : le tableau de bord affiche un historique en tableau, sans courbe pour l'instant.
+- **PostgreSQL** était prévu ; nous avons gardé **SQLite**, en connaissance de cause : aucune installation, démonstration reproductible, suffisant pour un serveur unique à faible charge. Les limites (un seul serveur en écriture, pas de réplication) sont assumées, et tout l'accès à la base passe par une seule fonction de connexion, donc le passage à PostgreSQL serait localisé.
+- **Inscription du patient** : réalisée (formulaire validé côté client et serveur, rôle patient imposé par le serveur, limitation de débit).
+- **Graphiques des constantes** : réalisés (quatre graphiques avec lignes de seuil, mis à jour en temps réel).
+- **Plusieurs patients** : le médecin dispose d'une liste de patients avec alertes ouvertes, consentement et dernière mesure.
 - **Chiffrement** : le média est chiffré par WebRTC (DTLS/SRTP) et les mots de passe sont hachés ; le chiffrement des données au repos n'est pas implémenté.
 
 ## Contenu des diapositives
@@ -51,9 +52,9 @@ Répartition issue du plan d'équipe. Chacun doit savoir ouvrir ces fichiers et 
 6. **Modèle de données et BPMN** : afficher le diagramme entité-association (7 tables) et le BPMN à trois couloirs avec les cas dégradés.
 7. **Démonstration** : voir le script ci-dessous.
 8. **Alertes et données** : seuils (tension systolique >= 180 ou diastolique >= 120, SpO2 < 90 %, fréquence cardiaque < 45 ou > 130, température >= 39 degrés), envoi au médecin seul, données entièrement fictives et documentées.
-9. **Sécurité** : mots de passe hachés (PBKDF2), sessions à jeton révocable, rôles contrôlés par le serveur sur chaque route, consentement bloquant (HTTP 409), WebSockets authentifiés avec vérification d'origine, salle vidéo liée à un médecin et un patient. Tableau article par article de la loi 131-13.
-10. **Validation** : 25 tests automatisés, 6 profils cliniques détectés sur 6, 3 valeurs impossibles rejetées sur 3, latences mesurées (médiane d'écriture 30,9 ms), scénario complet dans deux fenêtres, score SUS avec des testeurs (à ajouter quand disponible).
-11. **Limites** : pas de second facteur, comptes de démonstration, un seul dossier suivi, STUN public sans relais TURN, capture caméra testée à la main, pas de validation clinique des seuils.
+9. **Sécurité** : mots de passe hachés (PBKDF2), sessions à jeton révocable, rôles contrôlés par le serveur sur chaque route, consentement bloquant (HTTP 409), WebSockets authentifiés avec vérification d'origine, salle vidéo liée à un médecin et un patient, verrouillage après échecs de connexion, protection XSS (échappement et CSP). Tableau article par article de la loi 131-13.
+10. **Validation** : 35 tests automatisés, 6 profils cliniques détectés sur 6, 3 valeurs impossibles rejetées sur 3, latences mesurées (médiane d'écriture 30,9 ms), scénario complet dans deux fenêtres, score SUS avec des testeurs (à ajouter quand disponible).
+11. **Limites** : pas de second facteur, comptes de démonstration, un seul compte médecin, STUN public sans relais TURN, capture caméra testée à la main, pas de validation clinique des seuils.
 12. **Conclusion** : le prototype valide le parcours complet sans prétendre remplacer une plateforme médicale certifiée.
 
 ## Script de démonstration (5 minutes)
@@ -72,11 +73,12 @@ Répartition issue du plan d'équipe. Chacun doit savoir ouvrir ces fichiers et 
 
 | Étape | Qui | Action | Résultat à montrer |
 |---|---|---|---|
-| 1 | Patient | Connexion `amal` | Espace patient, menu réduit à deux entrées |
-| 2 | Médecin | Connexion `dr.benali`, clic « Démarrer une consultation » | Refus : le patient n'a pas donné son consentement (cas dégradé n° 1, art. 101) |
+| 0 | Patient | « Créer un compte » : saisir un nom, un identifiant, une année de naissance et un mot de passe (ou connexion `amal`) | Compte créé, espace patient ouvert ; le nouveau patient apparaît dans la liste du médecin |
+| 1 | Patient | Connexion `amal` (ou le compte créé) | Espace patient, menu réduit à deux entrées |
+| 2 | Médecin | Connexion `dr.benali`, choisir le patient dans la liste, clic « Démarrer une consultation » | Refus : le patient n'a pas donné son consentement (cas dégradé n° 1, art. 101) |
 | 3 | Patient | Cocher le consentement et enregistrer | Badge « Confirmé » ; le tableau de bord du médecin passe à « Confirmé » |
 | 4 | Patient | Envoyer une mesure normale | Aucune alerte ; ligne ajoutée à l'historique du médecin |
-| 5 | Patient | « Simuler une alerte » puis envoyer (188/122, SpO2 89 %) | Cas dégradé n° 2 : alerte critique immédiate chez le médecin |
+| 5 | Patient | « Simuler une alerte » puis envoyer (188/122, SpO2 89 %) | Cas dégradé n° 2 : alerte critique immédiate chez le médecin ; les quatre graphiques montrent le point au-dessus du seuil |
 | 6 | Médecin | Acquitter l'alerte | Compteur à zéro, statut « acquittée » |
 | 7 | Médecin | « Démarrer une consultation » | Le patient voit l'invitation sans recharger |
 | 8 | Patient | « Rejoindre » | Vidéo des deux côtés, statut « Consultation connectée » |
@@ -98,7 +100,7 @@ Cas dégradés optionnels si le temps le permet : essayer une valeur impossible 
 | Pourquoi WebRTC plutôt que de passer la vidéo par le serveur ? | Norme imposée par le sujet ; le flux est pair à pair, chiffré DTLS/SRTP, donc le serveur ne voit ni ne stocke la vidéo et supporte peu de charge. |
 | À quoi sert le serveur dans l'appel ? | Il authentifie les deux participants et relaie la signalisation (offre, réponse, candidats ICE). Le média passe directement entre navigateurs. |
 | Que sont STUN, TURN et ICE ? | ICE cherche un chemin réseau entre les deux navigateurs ; STUN leur apprend leur adresse publique ; TURN relaie le flux quand aucun chemin direct n'existe (réseaux stricts). Ici STUN par défaut, TURN configurable. |
-| Pourquoi SQLite alors que le plan prévoyait PostgreSQL ? | Pour une démonstration sans installation. L'accès passe par une seule fonction de connexion ; PostgreSQL serait nécessaire pour plusieurs utilisateurs en parallèle. |
+| Pourquoi SQLite alors que le plan prévoyait PostgreSQL ? | Choix assumé : sans installation, reproductible, suffisant pour un serveur unique. L'accès passe par une seule fonction de connexion ; PostgreSQL serait nécessaire pour plusieurs serveurs ou une forte charge simultanée. |
 | Comment le consentement est-il appliqué ? | Il est enregistré avec date et finalité ; le serveur refuse de démarrer une consultation si le dernier consentement n'est pas une acceptation (HTTP 409). Cela répond à l'art. 101 de la loi 131-13 : consentement exprès, libre, éclairé, électronique accepté, droit de refus. |
 | Que dit la loi 131-13 sur la télémédecine ? | Section 4, art. 99 à 102 : télémédecine autorisée, y compris la surveillance des patients, sous réserve de la protection des données (99) ; actes et identité du médecin consignés (100) ; consentement du patient (101) ; conditions techniques fixées par règlement (102). |
 | Que fait la loi 09-08 ? | Elle protège les données personnelles : consentement, droits d'information, d'accès, de rectification et d'opposition, sécurité et confidentialité, contrôle par la CNDP. Les données de santé sont sensibles. Relire le texte pour citer les articles. |
@@ -107,8 +109,8 @@ Cas dégradés optionnels si le temps le permet : essayer une valeur impossible 
 | Comment sont choisis les seuils ? | Valeurs usuelles simplifiées pour la démonstration ; ils ne sont pas validés cliniquement et devraient l'être avec un médecin. Le taux de détection de 100 % mesure la correction du code, pas la sensibilité clinique. |
 | Pourquoi des WebSockets pour les alertes ? | Une alerte doit arriver tout de suite sans que le médecin interroge le serveur en boucle ; le même canal porte les invitations. |
 | D'où viennent les données ? | Elles sont entièrement fictives : patient, médecin, comptes et mesures sont générés au démarrage ou saisis par les testeurs ; aucune donnée réelle. |
-| Quelles sont les limites de sécurité ? | Pas de second facteur ni de verrouillage après échecs, comptes de démonstration au mot de passe public, jeton gardé par onglet plutôt qu'en cookie HttpOnly, pas de chiffrement au repos. Tout est listé dans la note de sécurité. |
-| Comment passer à l'échelle ? | PostgreSQL, plusieurs patients et médecins avec affectation, relais TURN, hébergement agréé pour données de santé, journal d'audit. |
+| Quelles sont les limites de sécurité ? | Pas de second facteur, verrouillage après échecs limité à un serveur, comptes de démonstration au mot de passe public, jeton gardé par onglet plutôt qu'en cookie HttpOnly, pas de chiffrement au repos. Tout est listé dans la note de sécurité. |
+| Comment passer à l'échelle ? | PostgreSQL, plusieurs médecins avec affectation des patients, relais TURN, hébergement agréé pour données de santé, journal d'audit. |
 | Comment avez-vous mesuré l'utilisabilité ? | Protocole SUS avec des testeurs en binôme (`docs/test-utilisabilite.md`) ; donner le score réel une fois les essais faits, sans extrapoler. |
 
 ## À relire avant l'oral
@@ -120,6 +122,6 @@ Cas dégradés optionnels si le temps le permet : essayer une valeur impossible 
 
 ## Chiffres à connaître
 
-- 25 tests automatisés, tous réussis ; 100 % de détection sur 6 profils ; 100 % de rejet sur 3 valeurs impossibles.
+- 35 tests automatisés, tous réussis ; 100 % de détection sur 6 profils ; 100 % de rejet sur 3 valeurs impossibles.
 - Latences locales (voir réserves dans `docs/validation.md`) : écriture d'une mesure, médiane 30,9 ms ; création d'alerte, moyenne 25,8 ms ; acquittement, moyenne 28,2 ms.
-- 7 tables, 2 comptes de démonstration, 2 participants maximum par salle, sessions de 8 heures.
+- 7 tables, 2 comptes de démonstration plus inscription libre (200 comptes maximum), 2 participants maximum par salle, sessions de 8 heures.

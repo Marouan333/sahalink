@@ -1,47 +1,47 @@
-# Parcours patient-medecin (BPMN)
+# Parcours patient-médecin (BPMN)
 
 ## Objectif
 
-Formaliser le processus metier de bout en bout, avec un couloir par acteur (notation BPMN : evenement de depart en cercle fin, tache en rectangle, decision en losange, evenement de fin en cercle epais). Le diagramme couvre le parcours nominal et les cas degrades.
+Formaliser le processus métier de bout en bout, avec un couloir par acteur (notation BPMN : événement de départ en cercle fin, tâche en rectangle, décision en losange, événement de fin en cercle épais). Le diagramme couvre le parcours nominal et les cas dégradés.
 
 ## Diagramme
 
 ```mermaid
 flowchart TD
     subgraph Patient["Couloir : Patient"]
-        PA((Debut)) --> PB[Se connecter]
+        PA((Début)) --> PB[Créer un compte ou se connecter]
         PB --> PC[Lire le texte de consentement]
-        PC --> PD{Consentement accepte ?}
-        PD -- Non --> PZ((Fin : suivi a distance non active))
+        PC --> PD{Consentement accepté ?}
+        PD -- Non --> PZ((Fin : suivi à distance non activé))
         PD -- Oui --> PE[Enregistrer le consentement]
         PE --> PF[Saisir et envoyer une constante]
-        PI[Recevoir l'invitation en temps reel] --> PJ[Rejoindre la consultation]
+        PI[Recevoir l'invitation en temps réel] --> PJ[Rejoindre la consultation]
     end
 
-    subgraph Systeme["Couloir : Systeme SahaLink"]
+    subgraph Système["Couloir : Système SahaLink"]
         SA[Valider les bornes physiologiques] --> SB{Valeur impossible ?}
         SB -- Oui --> SC[Rejeter HTTP 422]
-        SB -- Non --> SD[Enregistrer la mesure horodatee]
-        SD --> SE{Seuil clinique depasse ?}
-        SE -- Non --> SF[Mettre a jour l'historique]
-        SE -- Oui : cas degrade --> SG[Creer l'alerte puis l'envoyer au medecin]
-        SH{Dernier consentement accepte ?}
-        SH -- Non --> SI[Refuser le demarrage HTTP 409]
-        SH -- Oui --> SJ[Creer la consultation et son code de salle aleatoire]
+        SB -- Non --> SD[Enregistrer la mesure horodatée]
+        SD --> SE{Seuil clinique dépassé ?}
+        SE -- Non --> SF[Mettre à jour l'historique]
+        SE -- Oui : cas dégradé --> SG[Créer l'alerte puis l'envoyer au médecin]
+        SH{Dernier consentement accepté ?}
+        SH -- Non --> SI[Refuser le démarrage HTTP 409]
+        SH -- Oui --> SJ[Créer la consultation et son code de salle aléatoire]
         SK[Relayer la signalisation entre les deux participants]
-        SL[Fermer la consultation et prevenir le patient]
+        SL[Fermer la consultation et prévenir le patient]
     end
 
-    subgraph Medecin["Couloir : Medecin"]
-        DA((Debut)) --> DB[Se connecter]
-        DB --> DC[Consulter le tableau de bord]
-        DD[Recevoir l'alerte en temps reel] --> DE[Consulter l'historique]
-        DE --> DF{Teleconsultation necessaire ?}
+    subgraph Médecin["Couloir : Médecin"]
+        DA((Début)) --> DB[Se connecter]
+        DB --> DC[Choisir un patient et consulter son tableau de bord]
+        DD[Recevoir l'alerte en temps réel] --> DE[Consulter l'historique]
+        DE --> DF{Téléconsultation nécessaire ?}
         DF -- Non --> DG[Acquitter l'alerte]
-        DF -- Oui --> DH[Demarrer la consultation]
-        DK[Teleconsultation video pair a pair] --> DL[Terminer la consultation]
-        DG --> DZ((Fin : alerte traitee))
-        DL --> DY((Fin : consultation terminee))
+        DF -- Oui --> DH[Démarrer la consultation]
+        DK[Téléconsultation vidéo pair à pair] --> DL[Terminer la consultation]
+        DG --> DZ((Fin : alerte traitée))
+        DL --> DY((Fin : consultation terminée))
     end
 
     PF --> SA
@@ -58,24 +58,24 @@ flowchart TD
     DL --> SL
 ```
 
-## Legende des elements
+## Légende des éléments
 
 | Symbole | Signification BPMN | Occurrence dans le processus |
 |---|---|---|
-| Cercle fin | Evenement de debut | Connexion du patient ou du medecin |
-| Rectangle | Tache utilisateur ou systeme | Saisie, validation, enregistrement, envoi d'alerte, consultation |
-| Losange | Passerelle de decision exclusive (XOR) | Consentement accepte ou non ; valeur impossible ou non ; seuil depasse ou non ; teleconsultation necessaire ou non ; consentement valide ou non |
-| Cercle epais | Evenement de fin | Suivi non active, alerte traitee, consultation terminee, consentement requis |
-| Couloir | Acteur responsable de la tache | Patient, systeme SahaLink, medecin |
+| Cercle fin | Événement de début | Connexion du patient ou du médecin |
+| Rectangle | Tâche utilisateur ou système | Saisie, validation, enregistrement, envoi d'alerte, consultation |
+| Losange | Passerelle de décision exclusive (XOR) | Consentement accepté ou non ; valeur impossible ou non ; seuil dépassé ou non ; téléconsultation nécessaire ou non ; consentement valide ou non |
+| Cercle épais | Événement de fin | Suivi non activé, alerte traitée, consultation terminée, consentement requis |
+| Couloir | Acteur responsable de la tâche | Patient, système SahaLink, médecin |
 
-## Cas degrades couverts
+## Cas dégradés couverts
 
-| Cas degrade | Branche du diagramme | Comportement | Verification |
+| Cas dégradé | Branche du diagramme | Comportement | Vérification |
 |---|---|---|---|
-| Valeur physiologiquement impossible | `SB - Oui` | Mesure rejetee (HTTP 422), rien n'est enregistre | `test_invalid_vital_is_rejected` |
-| Constante hors seuil | `SE - Oui` | Alerte creee et envoyee au medecin en temps reel | `test_critical_vital_alerts_the_doctor`, bouton « Simuler une alerte » |
-| Consentement absent ou retire | `SH - Non` | Demarrage de la consultation refuse (HTTP 409) | `test_consultation_requires_consent` |
-| Troisieme personne dans la salle | `SK` | Connexion refusee, message « room-full » | `test_signaling_room_rejects_a_third_peer` |
-| Tiers sans jeton ou hors consultation | `SK` | Connexion refusee, `auth-failed` ou `forbidden` | `test_signaling_rejects_a_missing_token`, `test_signaling_rejects_an_unknown_room` |
-| Perte ou depart du correspondant | `SK`, `DL` | L'autre participant est prevenu et peut attendre le retour | `test_signaling_notifies_remaining_peer_when_one_leaves` |
-| Camera noire ou virtuelle | `DK`, `PJ` | Le statut explique le probleme et propose de changer de camera | Test manuel (voir README) |
+| Valeur physiologiquement impossible | `SB - Oui` | Mesure rejetée (HTTP 422), rien n'est enregistré | `test_invalid_vital_is_rejected` |
+| Constante hors seuil | `SE - Oui` | Alerte créée et envoyée au médecin en temps réel | `test_critical_vital_alerts_the_doctor`, bouton « Simuler une alerte » |
+| Consentement absent ou retiré | `SH - Non` | Démarrage de la consultation refusé (HTTP 409) | `test_consultation_requires_consent` |
+| Troisième personne dans la salle | `SK` | Connexion refusée, message « room-full » | `test_signaling_room_rejects_a_third_peer` |
+| Tiers sans jeton ou hors consultation | `SK` | Connexion refusée, `auth-failed` ou `forbidden` | `test_signaling_rejects_a_missing_token`, `test_signaling_rejects_an_unknown_room` |
+| Perte ou départ du correspondant | `SK`, `DL` | L'autre participant est prévenu et peut attendre le retour | `test_signaling_notifies_remaining_peer_when_one_leaves` |
+| Caméra noire ou virtuelle | `DK`, `PJ` | Le statut explique le problème et propose de changer de caméra | Test manuel (voir README) |

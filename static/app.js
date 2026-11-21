@@ -1,9 +1,12 @@
-const DEMO_PATIENT_ID = 1;
 const TOKEN_KEY = "sahalink.token";
+const PATIENT_KEY = "sahalink.patient";
 let currentUser = null;
 let currentView = "doctor";
 let eventsSocket;
 let activeConsultation = null;
+let patientsList = [];
+let selectedPatientId = null;
+let dashboardRun = 0;
 let iceServers = [{ urls: ["stun:stun.l.google.com:19302", "stun:stun.cloudflare.com:3478"] }];
 let localStream;
 let peerConnection;
@@ -16,19 +19,31 @@ const ICON_CLOCK_SM = '<svg class="icon icon-sm" viewBox="0 0 24 24" fill="none"
 
 const $ = (selector) => document.querySelector(selector);
 
+// Names typed by patients are shown to the doctor: anything inserted with innerHTML goes through this.
+const HTML_ESCAPES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => HTML_ESCAPES[char]);
+
 // Per-tab storage: a doctor and a patient can be logged in side by side in one browser.
-function readToken() {
-  try { return sessionStorage.getItem(TOKEN_KEY) || ""; } catch { return ""; }
+function readStored(key) {
+  try { return sessionStorage.getItem(key) || ""; } catch { return ""; }
 }
 
-function storeToken(token) {
+function writeStored(key, value) {
   try {
-    if (token) sessionStorage.setItem(TOKEN_KEY, token);
-    else sessionStorage.removeItem(TOKEN_KEY);
-  } catch { /* storage unavailable: the session lasts until the tab reloads */ }
+    if (value) sessionStorage.setItem(key, value);
+    else sessionStorage.removeItem(key);
+  } catch { /* storage unavailable: the value lasts until the tab reloads */ }
 }
 
-let authToken = readToken();
+let authToken = readStored(TOKEN_KEY);
+const storeToken = (token) => writeStored(TOKEN_KEY, token);
+
+function errorMessage(detail) {
+  if (Array.isArray(detail)) {
+    return detail.map((item) => String(item.msg || "").replace(/^Value error, /, "")).filter(Boolean).join(" ") || "Les informations saisies sont invalides.";
+  }
+  return detail || "Une erreur est survenue.";
+}
 
 const api = async (path, options = {}) => {
   const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
@@ -36,18 +51,20 @@ const api = async (path, options = {}) => {
   const response = await fetch(path, { ...options, headers });
   if (response.status === 401 && currentUser) {
     handleSessionExpired();
-    throw new Error("Session expiree. Veuillez vous reconnecter.");
+    throw new Error("Session expirée. Veuillez vous reconnecter.");
   }
   if (!response.ok) {
     const detail = await response.json().catch(() => ({}));
-    throw new Error(detail.detail || "Une erreur est survenue.");
+    throw new Error(errorMessage(detail.detail));
   }
   return response.status === 204 ? null : response.json();
 };
 
 const isDoctor = () => currentUser?.role === "doctor";
-const currentPatientId = () => (currentUser?.role === "patient" ? currentUser.patient_id : DEMO_PATIENT_ID);
+const currentPatientId = () => (currentUser?.role === "patient" ? currentUser.patient_id : selectedPatientId);
+const selectedPatient = () => patientsList.find((patient) => patient.id === selectedPatientId) || null;
 const socketUrl = (path) => `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}${path}`;
+const patientAge = (birthYear) => new Date().getFullYear() - birthYear;
 
 function initials(name) {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0].toUpperCase()).join("");
@@ -66,6 +83,10 @@ function formatDate(value) {
   return new Intl.DateTimeFormat("fr-MA", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }
 
+function formatShortDate(value) {
+  return new Intl.DateTimeFormat("fr-MA", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
+}
+
 function canSee(view) {
   const navItem = document.querySelector(`.nav-item[data-view="${view}"]`);
   return Boolean(currentUser && navItem && navItem.dataset.roles.split(" ").includes(currentUser.role));
@@ -77,9 +98,9 @@ function showView(name) {
   document.querySelectorAll(".view").forEach((element) => element.classList.toggle("active", element.id === `${name}-view`));
   document.querySelectorAll(".nav-item").forEach((element) => element.classList.toggle("active", element.dataset.view === name));
   const labels = {
-    doctor: ["ESPACE MEDECIN", `Bonjour, ${currentUser.display_name}`],
+    doctor: ["ESPACE MÉDECIN", `Bonjour, ${currentUser.display_name}`],
     patient: ["ESPACE PATIENT", "Mon suivi"],
-    video: ["TELECONSULTATION", "Salle de consultation"],
+    video: ["TÉLÉCONSULTATION", "Salle de consultation"],
   };
   $("#view-kicker").textContent = labels[name][0];
   $("#view-title").textContent = labels[name][1];
@@ -89,11 +110,17 @@ function showView(name) {
   if (name === "video") refreshConsultation();
 }
 
+function showAuthMode(mode) {
+  $("#login-section").hidden = mode !== "login";
+  $("#register-section").hidden = mode !== "register";
+  $(mode === "login" ? "#login-username" : "#reg-name").focus();
+}
+
 function showLoginScreen() {
   $(".app-shell").hidden = true;
   $("#login-screen").hidden = false;
   $("#login-password").value = "";
-  $("#login-username").focus();
+  showAuthMode("login");
 }
 
 function applyRole() {
@@ -105,14 +132,15 @@ function applyRole() {
   avatar.setAttribute("aria-label", `Profil ${currentUser.display_name}`);
   $("#patient-heading").textContent = `Bonjour ${currentUser.display_name.split(" ")[0]}`;
   $("#remote-placeholder-hint").textContent = isDoctor()
-    ? "Le patient apparaitra ici des qu'il rejoint la consultation."
-    : "Votre medecin apparaitra ici.";
+    ? "Le patient apparaîtra ici dès qu'il rejoint la consultation."
+    : "Votre médecin apparaîtra ici.";
 }
 
 async function startSession(user) {
   currentUser = user;
   $("#login-screen").hidden = true;
   $(".app-shell").hidden = false;
+  selectedPatientId = Number(readStored(PATIENT_KEY)) || null;
   applyRole();
   updateConsultationUi();
   api("/api/rtc-config").then((config) => { if (config?.iceServers?.length) iceServers = config.iceServers; }).catch(() => {});
@@ -126,6 +154,8 @@ function resetSessionState() {
   if (localStream) endCall({ notifyServer: false });
   currentUser = null;
   activeConsultation = null;
+  patientsList = [];
+  selectedPatientId = null;
   authToken = "";
   storeToken("");
   const socket = eventsSocket;
@@ -137,7 +167,13 @@ function resetSessionState() {
 function handleSessionExpired() {
   resetSessionState();
   showLoginScreen();
-  $("#login-error").textContent = "Votre session a expire. Veuillez vous reconnecter.";
+  $("#login-error").textContent = "Votre session a expiré. Veuillez vous reconnecter.";
+}
+
+async function openSession(session) {
+  authToken = session.token;
+  storeToken(session.token);
+  await startSession(session.user);
 }
 
 async function submitLogin(event) {
@@ -150,12 +186,41 @@ async function submitLogin(event) {
   button.disabled = true;
   error.textContent = "";
   try {
-    const session = await api("/api/auth/login", { method: "POST", body: JSON.stringify({ username, password }) });
-    authToken = session.token;
-    storeToken(session.token);
-    await startSession(session.user);
+    await openSession(await api("/api/auth/login", { method: "POST", body: JSON.stringify({ username, password }) }));
   } catch (loginError) {
     error.textContent = loginError.message;
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function submitRegister(event) {
+  event.preventDefault();
+  const error = $("#register-error");
+  const data = {
+    display_name: $("#reg-name").value.trim(),
+    username: $("#reg-username").value.trim().toLowerCase(),
+    birth_year: Number($("#reg-year").value),
+    care_plan: $("#reg-plan").value.trim(),
+    password: $("#reg-password").value,
+  };
+  const currentYear = new Date().getFullYear();
+  const problem = !data.display_name ? "Saisissez votre nom complet."
+    : !/^[a-z0-9._-]{3,32}$/.test(data.username) ? "L'identifiant doit contenir 3 à 32 caractères : lettres minuscules, chiffres, point, tiret ou tiret bas."
+    : !Number.isInteger(data.birth_year) || data.birth_year < 1900 || data.birth_year > currentYear ? `L'année de naissance doit être comprise entre 1900 et ${currentYear}.`
+    : data.password.length < 8 ? "Le mot de passe doit contenir au moins 8 caractères."
+    : "";
+  if (problem) { error.textContent = problem; return; }
+  if (!data.care_plan) delete data.care_plan;
+  const button = $("#register-submit");
+  button.disabled = true;
+  error.textContent = "";
+  try {
+    await openSession(await api("/api/auth/register", { method: "POST", body: JSON.stringify(data) }));
+    $("#register-form").reset();
+    toast("Compte créé. Donnez votre consentement pour activer la téléconsultation.");
+  } catch (registerError) {
+    error.textContent = registerError.message;
   } finally {
     button.disabled = false;
   }
@@ -184,7 +249,7 @@ async function restoreSession() {
 
 function vitalMarkup(vital) {
   if (!vital) return ["--", "--", "--", "--"];
-  return [`${vital.systolic}/${vital.diastolic}`, vital.heart_rate, vital.spo2, vital.temperature];
+  return [`${vital.systolic}/${vital.diastolic}`, vital.heart_rate, vital.spo2, Number(vital.temperature).toFixed(1)];
 }
 
 function updateVitalCards(vital) {
@@ -194,23 +259,136 @@ function updateVitalCards(vital) {
 }
 
 function rowMarkup(vital, includeSource = true) {
+  const simulated = vital.source === "simulated";
   const sourceCell = includeSource
-    ? `<td><span class="source-pill ${vital.source}">${vital.source === "simulated" ? "Simulee" : "Saisie patient"}</span></td>`
+    ? `<td><span class="source-pill ${simulated ? "simulated" : "manual"}">${simulated ? "Simulée" : "Saisie patient"}</span></td>`
     : "";
-  return `<tr><td>${formatDate(vital.recorded_at)}</td><td>${vital.systolic}/${vital.diastolic} mmHg</td><td>${vital.heart_rate} bpm</td><td>${vital.spo2}%</td><td>${vital.temperature} deg C</td>${sourceCell}</tr>`;
+  return `<tr><td>${escapeHtml(formatDate(vital.recorded_at))}</td><td>${Number(vital.systolic)}/${Number(vital.diastolic)} mmHg</td><td>${Number(vital.heart_rate)} bpm</td><td>${Number(vital.spo2)}%</td><td>${Number(vital.temperature).toFixed(1)} °C</td>${sourceCell}</tr>`;
 }
 
-async function refreshHistory() {
-  const vitals = await api(`/api/patients/${currentPatientId()}/vitals`);
-  $("#doctor-history").innerHTML = vitals.length ? vitals.map((item) => rowMarkup(item)).join("") : `<tr><td colspan="6">Aucune constante enregistree.</td></tr>`;
-  $("#patient-history").innerHTML = vitals.length ? vitals.map((item) => rowMarkup(item, false)).join("") : `<tr><td colspan="5">Aucune constante enregistree.</td></tr>`;
+// ---------- trend charts (inline SVG, no library) ----------
+
+const CHART_SPECS = [
+  {
+    title: "Tension artérielle", unit: "mmHg", minSpan: 40, decimals: 0,
+    series: [{ key: "systolic", css: "primary", label: "Systolique" }, { key: "diastolic", css: "secondary", label: "Diastolique" }],
+    thresholds: [
+      { value: 180, series: "systolic", level: "critical", dir: "high", inclusive: true },
+      { value: 120, series: "diastolic", level: "critical", dir: "high", inclusive: true },
+    ],
+    format: (reading) => `${reading.systolic}/${reading.diastolic}`,
+  },
+  {
+    title: "Fréquence cardiaque", unit: "bpm", minSpan: 40, decimals: 0,
+    series: [{ key: "heart_rate", css: "primary" }],
+    thresholds: [{ value: 130, level: "warning", dir: "high" }, { value: 45, level: "warning", dir: "low" }],
+    format: (reading) => String(reading.heart_rate),
+  },
+  {
+    title: "Saturation en oxygène", unit: "%", minSpan: 10, decimals: 0,
+    series: [{ key: "spo2", css: "primary" }],
+    thresholds: [{ value: 90, level: "critical", dir: "low" }],
+    format: (reading) => String(reading.spo2),
+  },
+  {
+    title: "Température", unit: "°C", minSpan: 3, decimals: 1,
+    series: [{ key: "temperature", css: "primary" }],
+    thresholds: [{ value: 39, level: "warning", dir: "high", inclusive: true }],
+    format: (reading) => Number(reading.temperature).toFixed(1),
+  },
+];
+
+function exceedsThreshold(threshold, value) {
+  if (threshold.dir === "low") return value < threshold.value;
+  return threshold.inclusive ? value >= threshold.value : value > threshold.value;
+}
+
+function pointLevel(spec, seriesKey, value) {
+  let level = "";
+  spec.thresholds.filter((threshold) => !threshold.series || threshold.series === seriesKey).forEach((threshold) => {
+    if (!exceedsThreshold(threshold, value)) return;
+    if (threshold.level === "critical") level = "critical";
+    else if (!level) level = "warning";
+  });
+  return level;
+}
+
+function buildTrendCard(spec, readings) {
+  const last = readings[readings.length - 1];
+  const header = `<header><h3>${spec.title}</h3><strong class="trend-last">${last ? escapeHtml(spec.format(last)) : "--"} <small>${spec.unit}</small></strong></header>`;
+  if (!readings.length) return `<article class="trend-card">${header}<p class="trend-empty">Aucune mesure pour le moment.</p></article>`;
+
+  const width = 250, height = 140, left = 30, right = 12, top = 12, bottom = 20;
+  const plotWidth = width - left - right, plotHeight = height - top - bottom;
+  const everyValue = spec.series.flatMap((series) => readings.map((reading) => Number(reading[series.key])));
+  let min = Math.min(...everyValue, ...spec.thresholds.map((threshold) => threshold.value));
+  let max = Math.max(...everyValue, ...spec.thresholds.map((threshold) => threshold.value));
+  if (max - min < spec.minSpan) {
+    const middle = (max + min) / 2;
+    min = middle - spec.minSpan / 2;
+    max = middle + spec.minSpan / 2;
+  }
+  const margin = (max - min) * 0.08;
+  min -= margin;
+  max += margin;
+  const x = (index) => (readings.length === 1 ? left + plotWidth / 2 : left + (plotWidth * index) / (readings.length - 1));
+  const y = (value) => top + plotHeight * (1 - (value - min) / (max - min));
+  const axis = (value) => value.toFixed(spec.decimals);
+
+  const grid = [min, (min + max) / 2, max].map((value) =>
+    `<line class="grid" x1="${left}" x2="${width - right}" y1="${y(value).toFixed(1)}" y2="${y(value).toFixed(1)}"></line><text x="${left - 4}" y="${(y(value) + 3).toFixed(1)}" text-anchor="end">${axis(value)}</text>`
+  ).join("");
+  const thresholds = spec.thresholds.map((threshold) =>
+    `<line class="threshold ${threshold.level}" x1="${left}" x2="${width - right}" y1="${y(threshold.value).toFixed(1)}" y2="${y(threshold.value).toFixed(1)}"></line><text class="threshold-label ${threshold.level}" x="${width - right}" y="${(y(threshold.value) - 3).toFixed(1)}" text-anchor="end">${threshold.value}</text>`
+  ).join("");
+
+  let outOfRange = 0;
+  const drawn = spec.series.map((series) => {
+    const line = readings.length > 1
+      ? `<polyline class="series ${series.css}" points="${readings.map((reading, index) => `${x(index).toFixed(1)},${y(Number(reading[series.key])).toFixed(1)}`).join(" ")}"></polyline>`
+      : "";
+    const dots = readings.map((reading, index) => {
+      const value = Number(reading[series.key]);
+      const level = pointLevel(spec, series.key, value);
+      if (level) outOfRange += 1;
+      return `<circle class="point ${series.css === "secondary" ? "secondary" : ""} ${level}" cx="${x(index).toFixed(1)}" cy="${y(value).toFixed(1)}" r="3"><title>${escapeHtml(formatShortDate(reading.recorded_at))} : ${value} ${spec.unit}</title></circle>`;
+    }).join("");
+    return line + dots;
+  }).join("");
+
+  const firstLabel = escapeHtml(formatShortDate(readings[0].recorded_at));
+  const lastLabel = escapeHtml(formatShortDate(last.recorded_at));
+  const dates = readings.length === 1
+    ? `<text x="${(left + plotWidth / 2).toFixed(1)}" y="${height - 5}" text-anchor="middle">${firstLabel}</text>`
+    : `<text x="${left}" y="${height - 5}">${firstLabel}</text><text x="${width - right}" y="${height - 5}" text-anchor="end">${lastLabel}</text>`;
+  const legend = spec.series.length > 1
+    ? `<p class="trend-legend">${spec.series.map((series) => `<span><i class="${series.css}"></i>${series.label}</span>`).join("")}</p>`
+    : "";
+  const description = `${spec.title} : ${readings.length} mesure${readings.length > 1 ? "s" : ""}, dernière valeur ${spec.format(last)} ${spec.unit}${outOfRange ? `, ${outOfRange} point${outOfRange > 1 ? "s" : ""} hors seuil` : ""}.`;
+  return `<article class="trend-card">${header}${legend}<svg class="trend-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(description)}">${grid}${thresholds}${drawn}${dates}</svg></article>`;
+}
+
+function renderTrends(vitals) {
+  const readings = [...vitals].reverse();
+  $("#trend-grid").innerHTML = CHART_SPECS.map((spec) => buildTrendCard(spec, readings)).join("");
+  $("#trend-count").textContent = `${readings.length} mesure${readings.length > 1 ? "s" : ""}`;
+}
+
+async function refreshHistory(run = dashboardRun) {
+  const patientId = currentPatientId();
+  const vitals = patientId ? await api(`/api/patients/${patientId}/vitals`) : [];
+  if (isDoctor() && run !== dashboardRun) return;
+  const latest = vitals.slice(0, 10);
+  $("#doctor-history").innerHTML = latest.length ? latest.map((item) => rowMarkup(item)).join("") : `<tr><td colspan="6">Aucune constante enregistrée.</td></tr>`;
+  $("#patient-history").innerHTML = latest.length ? latest.map((item) => rowMarkup(item, false)).join("") : `<tr><td colspan="5">Aucune constante enregistrée.</td></tr>`;
+  if (isDoctor()) renderTrends(vitals);
   updateVitalCards(vitals[0]);
 }
 
 function showConsentState(consent) {
   const accepted = Boolean(consent?.accepted);
   const badge = $("#consent-badge");
-  badge.textContent = accepted ? "Confirme" : "A confirmer";
+  badge.textContent = accepted ? "Confirmé" : "À confirmer";
   badge.className = accepted ? "tag" : "tag neutral";
   $("#consent-check").checked = accepted;
 }
@@ -225,17 +403,17 @@ async function refreshPatientView() {
 function alertMarkup(alert) {
   const severity = alert.severity === "critical" ? "critical" : "";
   const action = alert.status === "open"
-    ? `<button type="button" data-alert-id="${alert.id}" class="acknowledge">${ICON_CHECK_CIRCLE}<span>Acquitter l'alerte</span></button>`
-    : `<span class="alert-done">${ICON_CHECK_CIRCLE}<span>Alerte acquittee</span></span>`;
-  return `<article class="alert-item ${severity}">
+    ? `<button type="button" data-alert-id="${Number(alert.id)}" class="acknowledge">${ICON_CHECK_CIRCLE}<span>Acquitter l'alerte</span></button>`
+    : `<span class="alert-done">${ICON_CHECK_CIRCLE}<span>Alerte acquittée</span></span>`;
+  return `<article class="alert-item ${severity}" data-patient-id="${Number(alert.patient_id)}">
     <div class="alert-item-head">
       <span class="alert-icon" aria-hidden="true">${ICON_ALERT_TRIANGLE}</span>
-      <strong>${alert.patient_name}</strong>
-      <span class="severity-pill">${alert.severity === "critical" ? "Critique" : "A surveiller"}</span>
+      <strong>${escapeHtml(alert.patient_name)}</strong>
+      <span class="severity-pill">${alert.severity === "critical" ? "Critique" : "À surveiller"}</span>
     </div>
-    <p>${alert.message}</p>
+    <p>${escapeHtml(alert.message)}</p>
     <div class="alert-item-foot">
-      <span class="alert-time">${ICON_CLOCK_SM}<span>${formatDate(alert.created_at)}</span></span>
+      <span class="alert-time">${ICON_CLOCK_SM}<span>${escapeHtml(formatDate(alert.created_at))}</span></span>
       ${action}
     </div>
   </article>`;
@@ -246,16 +424,92 @@ async function refreshAlerts() {
   const open = alerts.filter((alert) => alert.status === "open");
   $("#alert-count").textContent = open.length;
   $("#open-alerts").textContent = open.length.toString().padStart(2, "0");
-  $("#alerts-list").innerHTML = alerts.length ? alerts.map(alertMarkup).join("") : `<p class="empty-state">Aucune alerte ouverte. Les seuils sont surveilles en continu.</p>`;
+  $("#alerts-list").innerHTML = alerts.length ? alerts.map(alertMarkup).join("") : `<p class="empty-state">Aucune alerte ouverte. Les seuils sont surveillés en continu.</p>`;
+}
+
+// ---------- doctor: patient list and selected patient ----------
+
+function renderPatientList() {
+  const list = $("#patient-list");
+  list.replaceChildren();
+  patientsList.forEach((patient) => {
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = `patient-row${patient.id === selectedPatientId ? " selected" : ""}`;
+    row.dataset.patientId = String(patient.id);
+    row.setAttribute("role", "listitem");
+    row.setAttribute("aria-pressed", String(patient.id === selectedPatientId));
+
+    const avatar = document.createElement("div");
+    avatar.className = "patient-avatar";
+    avatar.textContent = initials(patient.full_name);
+
+    const info = document.createElement("div");
+    info.className = "patient-row-info";
+    const name = document.createElement("strong");
+    name.textContent = patient.full_name;
+    const detail = document.createElement("span");
+    detail.textContent = `${patientAge(patient.birth_year)} ans · ${patient.care_plan}`;
+    info.append(name, detail);
+
+    const flags = document.createElement("div");
+    flags.className = "patient-row-flags";
+    if (patient.open_alerts > 0) {
+      const badge = document.createElement("span");
+      badge.className = "badge-alert";
+      badge.textContent = String(patient.open_alerts);
+      badge.title = `${patient.open_alerts} alerte${patient.open_alerts > 1 ? "s" : ""} ouverte${patient.open_alerts > 1 ? "s" : ""}`;
+      flags.append(badge);
+    }
+    const consent = document.createElement("span");
+    consent.className = `consent-dot${patient.consent_accepted ? " on" : ""}`;
+    consent.title = patient.consent_accepted ? "Consentement donné" : "Sans consentement";
+    flags.append(consent);
+
+    row.append(avatar, info, flags);
+    list.append(row);
+  });
+  const total = patientsList.length;
+  $("#patient-count-tag").textContent = `${total} patient${total > 1 ? "s" : ""}`;
+  $("#patients-total").textContent = String(total).padStart(2, "0");
+}
+
+function renderSelectedPatient(dashboard) {
+  const patient = dashboard.patient;
+  const consent = dashboard.latest_consent;
+  $("#selected-patient-name").textContent = patient ? patient.full_name : "Aucun patient";
+  $("#selected-patient-avatar").textContent = patient ? initials(patient.full_name) : "--";
+  $("#selected-patient-age").textContent = patient ? `${patientAge(patient.birth_year)} ans` : "--";
+  $("#selected-patient-plan").textContent = patient ? patient.care_plan : "Aucun patient inscrit pour le moment.";
+  $("#last-reading-patient").textContent = patient ? patient.full_name : "Aucun patient sélectionné";
+  $("#consent-state").textContent = consent ? (consent.accepted ? "Confirmé" : "Retiré") : "En attente";
+  updateVitalCards(dashboard.latest_vital);
+}
+
+function selectPatient(patientId) {
+  if (!patientId || patientId === selectedPatientId) return;
+  selectedPatientId = patientId;
+  writeStored(PATIENT_KEY, String(patientId));
+  updateConsultationUi();
+  refreshDashboard();
 }
 
 async function refreshDashboard() {
   if (!isDoctor()) return;
+  const run = ++dashboardRun;
   try {
-    const dashboard = await api("/api/dashboard");
-    updateVitalCards(dashboard.latest_vital);
-    $("#consent-state").textContent = dashboard.latest_consent?.accepted ? "Confirme" : "En attente";
-    await Promise.all([refreshHistory(), refreshAlerts()]);
+    const list = await api("/api/patients");
+    if (run !== dashboardRun) return;
+    patientsList = list;
+    if (!patientsList.some((patient) => patient.id === selectedPatientId)) {
+      selectedPatientId = (patientsList.find((patient) => patient.open_alerts > 0) || patientsList[0])?.id ?? null;
+    }
+    renderPatientList();
+    updateConsultationUi();
+    const dashboard = await api(`/api/dashboard${selectedPatientId ? `?patient_id=${selectedPatientId}` : ""}`);
+    if (run !== dashboardRun) return;
+    renderSelectedPatient(dashboard);
+    await Promise.all([refreshHistory(run), refreshAlerts()]);
   } catch (error) { toast(`Chargement impossible : ${error.message}`, true); }
 }
 
@@ -266,9 +520,9 @@ async function submitVital(event) {
   Object.keys(payload).forEach((key) => payload[key] = Number(payload[key]));
   try {
     const result = await api(`/api/patients/${currentPatientId()}/vitals`, { method: "POST", body: JSON.stringify(payload) });
-    const feedback = result.alert ? `Mesure enregistree. Alerte transmise a votre medecin : ${result.alert.message}.` : "Mesure enregistree et transmise au medecin.";
+    const feedback = result.alert ? `Mesure enregistrée. Alerte transmise à votre médecin : ${result.alert.message}.` : "Mesure enregistrée et transmise au médecin.";
     $("#vital-feedback").textContent = feedback;
-    toast(result.alert ? "Alerte clinique envoyee a votre medecin." : "Constantes envoyees.", Boolean(result.alert));
+    toast(result.alert ? "Alerte clinique envoyée à votre médecin." : "Constantes envoyées.", Boolean(result.alert));
     await refreshHistory();
   } catch (error) { $("#vital-feedback").textContent = error.message; toast(error.message, true); }
 }
@@ -276,15 +530,15 @@ async function submitVital(event) {
 async function submitConsent(event) {
   event.preventDefault();
   try {
-    const consent = await api(`/api/patients/${currentPatientId()}/consents`, { method: "POST", body: JSON.stringify({ accepted: $("#consent-check").checked, purpose: "Teleconsultation pedagogique et suivi des constantes simulees." }) });
+    const consent = await api(`/api/patients/${currentPatientId()}/consents`, { method: "POST", body: JSON.stringify({ accepted: $("#consent-check").checked, purpose: "Téléconsultation pédagogique et suivi des constantes simulées." }) });
     showConsentState(consent);
-    $("#consent-feedback").textContent = "Votre consentement a ete enregistre avec horodatage.";
-    toast("Consentement enregistre.");
+    $("#consent-feedback").textContent = "Votre consentement a été enregistré avec horodatage.";
+    toast("Consentement enregistré.");
   } catch (error) { $("#consent-feedback").textContent = error.message; toast(error.message, true); }
 }
 
 async function acknowledgeAlert(id) {
-  try { await api(`/api/alerts/${id}/acknowledge`, { method: "PATCH" }); toast("Alerte acquittee."); refreshAlerts(); } catch (error) { toast(error.message, true); }
+  try { await api(`/api/alerts/${id}/acknowledge`, { method: "PATCH" }); toast("Alerte acquittée."); refreshDashboard(); } catch (error) { toast(error.message, true); }
 }
 
 function connectEvents() {
@@ -295,23 +549,27 @@ function connectEvents() {
     const payload = JSON.parse(event.data);
     if (payload.type === "auth-failed") { handleSessionExpired(); return; }
     if (payload.type === "alert") {
-      toast(`Nouvelle alerte : ${payload.alert.message}`, true);
+      toast(`Nouvelle alerte (${payload.alert.patient_name}) : ${payload.alert.message}`, true);
       refreshDashboard();
     }
     if (payload.type === "vital") refreshDashboard();
+    if (payload.type === "patient-registered") {
+      toast("Un nouveau patient s'est inscrit.");
+      refreshDashboard();
+    }
     if (payload.type === "consent") {
-      toast(payload.accepted ? "Le patient a donne son consentement." : "Le patient a retire son consentement.", !payload.accepted);
+      toast(payload.accepted ? "Un patient a donné son consentement." : "Un patient a retiré son consentement.", !payload.accepted);
       refreshDashboard();
     }
     if (payload.type === "invitation") {
       activeConsultation = payload.consultation;
-      toast(`${activeConsultation.doctor_name} vous invite en teleconsultation.`);
+      toast(`${activeConsultation.doctor_name} vous invite en téléconsultation.`);
       updateConsultationUi();
     }
     if (payload.type === "consultation-ended") {
       activeConsultation = null;
       if (localStream) endCall({ notifyServer: false });
-      setVideoStatus("Le medecin a termine la consultation.");
+      setVideoStatus("Le médecin a terminé la consultation.");
       updateConsultationUi();
     }
   };
@@ -325,21 +583,23 @@ function updateConsultationUi() {
   const inCall = Boolean(localStream);
   const banner = $("#invite-banner");
   banner.hidden = isDoctor() || !activeConsultation || inCall;
-  if (activeConsultation) $("#invite-title").textContent = `${activeConsultation.doctor_name} vous invite en teleconsultation`;
+  if (activeConsultation) $("#invite-title").textContent = `${activeConsultation.doctor_name} vous invite en téléconsultation`;
 
   const info = $("#consultation-info");
   const startButton = $("#start-call");
   const startLabel = $("#start-call-label");
   if (isDoctor()) {
-    info.textContent = activeConsultation
-      ? `Consultation ouverte avec ${activeConsultation.patient_name}.`
-      : "Patient : Amal El Idrissi. Le patient recevra une invitation des que vous demarrez.";
-    startLabel.textContent = activeConsultation ? "Rejoindre la consultation" : "Demarrer la consultation";
-    startButton.disabled = inCall;
+    const patient = selectedPatient();
+    const forSelected = Boolean(activeConsultation) && activeConsultation.patient_id === selectedPatientId;
+    if (forSelected) info.textContent = `Consultation ouverte avec ${activeConsultation.patient_name}.`;
+    else if (patient) info.textContent = `Patient sélectionné : ${patient.full_name}. Il recevra une invitation dès que vous démarrez.`;
+    else info.textContent = "Choisissez d'abord un patient dans la liste du tableau de bord.";
+    startLabel.textContent = forSelected ? "Rejoindre la consultation" : "Démarrer la consultation";
+    startButton.disabled = inCall || !patient;
   } else {
     info.textContent = activeConsultation
-      ? `${activeConsultation.doctor_name} vous attend dans la salle de teleconsultation.`
-      : "Aucune consultation en cours. Votre medecin vous enverra une invitation.";
+      ? `${activeConsultation.doctor_name} vous attend dans la salle de téléconsultation.`
+      : "Aucune consultation en cours. Votre médecin vous enverra une invitation.";
     startLabel.textContent = "Rejoindre la consultation";
     startButton.disabled = inCall || !activeConsultation;
   }
@@ -356,7 +616,7 @@ async function refreshConsultation() {
 
 async function joinFromPatientSide() {
   if (!activeConsultation) await refreshConsultation();
-  if (!activeConsultation) { toast("Aucune consultation en cours. Attendez l'invitation de votre medecin.", true); return; }
+  if (!activeConsultation) { toast("Aucune consultation en cours. Attendez l'invitation de votre médecin.", true); return; }
   showView("video");
   activateVideo();
 }
@@ -468,12 +728,12 @@ function openCamera(deviceId) {
 
 async function findWorkingCamera() {
   const cameras = await listDevices("videoinput");
-  if (!cameras.length) throw new Error("Aucune camera detectee.");
+  if (!cameras.length) throw new Error("Aucune caméra détectée.");
   const preferred = readCameraPreference();
   const ordered = [...cameras].sort((a, b) => (b.deviceId === preferred) - (a.deviceId === preferred) || cameraScore(b) - cameraScore(a));
   let fallback = null;
   for (const camera of ordered) {
-    setVideoStatus(`Test de la camera : ${camera.label || "camera par defaut"}...`);
+    setVideoStatus(`Test de la caméra : ${camera.label || "caméra par défaut"}...`);
     let stream;
     try { stream = await openCamera(camera.deviceId); } catch { continue; }
     const luminance = await peakLuminance(stream.getVideoTracks()[0], $("#local-video"));
@@ -485,7 +745,7 @@ async function findWorkingCamera() {
     else fallback = { stream, camera, luminance };
   }
   if (fallback) return fallback;
-  throw new Error("Aucune camera n'a pu etre ouverte.");
+  throw new Error("Aucune caméra n'a pu être ouverte.");
 }
 
 async function openMicrophone() {
@@ -507,9 +767,9 @@ async function refreshCameraList() {
     cameras = (await navigator.mediaDevices.enumerateDevices()).filter((device) => device.kind === "videoinput" && device.deviceId);
   } catch { return; }
   const current = localStream?.getVideoTracks()[0]?.getSettings().deviceId || readCameraPreference();
-  select.replaceChildren(new Option("Detection automatique", ""));
+  select.replaceChildren(new Option("Détection automatique", ""));
   cameras.forEach((camera, index) => {
-    const name = camera.label || `Camera ${index + 1}`;
+    const name = camera.label || `Caméra ${index + 1}`;
     const virtual = camera.label && cameraScore(camera) < 2;
     select.add(new Option(virtual ? `${name} (virtuelle)` : name, camera.deviceId));
   });
@@ -517,19 +777,19 @@ async function refreshCameraList() {
 }
 
 function connectionSummary() {
-  return remoteConnected ? "Consultation connectee." : "En attente d'un correspondant dans la salle...";
+  return remoteConnected ? "Consultation connectée." : "En attente d'un correspondant dans la salle...";
 }
 
 function reportCameraHealth(luminance) {
   if (isBlack(luminance)) {
-    setVideoStatus(`Camera : ${activeCameraLabel}. Elle n'envoie qu'une image noire : choisissez une autre camera dans la liste. ${connectionSummary()}`);
-    toast("La camera choisie n'envoie qu'une image noire.", true);
+    setVideoStatus(`Caméra : ${activeCameraLabel}. Elle n'envoie qu'une image noire : choisissez une autre caméra dans la liste. ${connectionSummary()}`);
+    toast("La caméra choisie n'envoie qu'une image noire.", true);
     return;
   }
   const virtualHint = cameraScore({ label: activeCameraLabel }) < 2
-    ? " Camera virtuelle : si l'image ne vous correspond pas, choisissez votre webcam dans la liste."
+    ? " Caméra virtuelle : si l'image ne vous correspond pas, choisissez votre webcam dans la liste."
     : "";
-  setVideoStatus(`Camera : ${activeCameraLabel}.${virtualHint} ${connectionSummary()}`);
+  setVideoStatus(`Caméra : ${activeCameraLabel}.${virtualHint} ${connectionSummary()}`);
 }
 
 function attachLocalPreview() {
@@ -541,23 +801,29 @@ function attachLocalPreview() {
 
 function watchTrackEnd(track) {
   track.onended = () => {
-    if (track.kind === "video") toast("La camera a ete deconnectee. Choisissez une autre camera dans la liste.", true);
-    else toast("Le microphone a ete deconnecte.", true);
+    if (track.kind === "video") toast("La caméra a été déconnectée. Choisissez une autre caméra dans la liste.", true);
+    else toast("Le microphone a été déconnecté.", true);
     refreshCameraList();
   };
 }
 
 async function ensureConsultation() {
+  if (!isDoctor()) {
+    if (!activeConsultation) await refreshConsultation();
+    if (activeConsultation) return activeConsultation;
+    throw new Error("Aucune consultation en cours. Attendez l'invitation de votre médecin.");
+  }
+  if (!selectedPatientId) throw new Error("Choisissez d'abord un patient dans le tableau de bord.");
   if (!activeConsultation) await refreshConsultation();
-  if (activeConsultation) return activeConsultation;
-  if (!isDoctor()) throw new Error("Aucune consultation en cours. Attendez l'invitation de votre medecin.");
-  activeConsultation = await api("/api/consultations", { method: "POST", body: JSON.stringify({ patient_id: DEMO_PATIENT_ID }) });
-  toast(`Invitation envoyee a ${activeConsultation.patient_name}.`);
+  if (activeConsultation?.patient_id === selectedPatientId) return activeConsultation;
+  // The server ends any other consultation this doctor had open and tells that patient.
+  activeConsultation = await api("/api/consultations", { method: "POST", body: JSON.stringify({ patient_id: selectedPatientId }) });
+  toast(`Invitation envoyée à ${activeConsultation.patient_name}.`);
   return activeConsultation;
 }
 
 async function activateVideo() {
-  if (localStream) { toast("La camera est deja active. Utilisez la liste des cameras pour en changer.", true); return; }
+  if (localStream) { toast("La caméra est déjà active. Utilisez la liste des caméras pour en changer.", true); return; }
   const startButton = $("#start-call");
   startButton.disabled = true;
   let consultation;
@@ -571,13 +837,13 @@ async function activateVideo() {
   }
   updateConsultationUi();
   startButton.disabled = true;
-  setVideoStatus("Recherche d'une camera qui fournit une image...");
+  setVideoStatus("Recherche d'une caméra qui fournit une image...");
   try {
     const selected = await findWorkingCamera();
     const microphone = await openMicrophone();
     localStream = new MediaStream([...selected.stream.getVideoTracks(), ...(microphone ? microphone.getAudioTracks() : [])]);
     localStream.getTracks().forEach(watchTrackEnd);
-    activeCameraLabel = selected.camera.label || "camera par defaut";
+    activeCameraLabel = selected.camera.label || "caméra par défaut";
     if (!isBlack(selected.luminance) && cameraScore(selected.camera) >= 2) saveCameraPreference(selected.camera.deviceId);
     attachLocalPreview();
     await refreshCameraList();
@@ -587,8 +853,8 @@ async function activateVideo() {
   } catch (error) {
     localStream?.getTracks().forEach((track) => track.stop());
     localStream = null;
-    setVideoStatus("Camera indisponible. Autorisez l'acces a la camera dans le navigateur puis reessayez.");
-    toast("Impossible d'acceder a la camera.", true);
+    setVideoStatus("Caméra indisponible. Autorisez l'accès à la caméra dans le navigateur puis réessayez.");
+    toast("Impossible d'accéder à la caméra.", true);
   } finally {
     updateConsultationUi();
   }
@@ -597,11 +863,11 @@ async function activateVideo() {
 async function switchCamera(deviceId) {
   if (!deviceId) {
     saveCameraPreference("");
-    toast("Detection automatique de la camera activee.");
+    toast("Détection automatique de la caméra activee.");
     return;
   }
   saveCameraPreference(deviceId);
-  if (!localStream) { toast("Camera enregistree pour la prochaine consultation."); return; }
+  if (!localStream) { toast("Caméra enregistrée pour la prochaine consultation."); return; }
   try {
     const freshTrack = (await openCamera(deviceId)).getVideoTracks()[0];
     const oldTrack = localStream.getVideoTracks()[0];
@@ -616,11 +882,11 @@ async function switchCamera(deviceId) {
     if (sender) await sender.replaceTrack(freshTrack);
     else if (peerConnection) peerConnection.addTrack(freshTrack, localStream);
     attachLocalPreview();
-    activeCameraLabel = freshTrack.label || "camera selectionnee";
+    activeCameraLabel = freshTrack.label || "caméra sélectionnée";
     sendSignal({ type: "camera-state", enabled: freshTrack.enabled });
     reportCameraHealth(await peakLuminance(freshTrack, $("#local-video")));
   } catch {
-    toast("Impossible d'ouvrir cette camera : elle est peut-etre utilisee par une autre application.", true);
+    toast("Impossible d'ouvrir cette caméra : elle est peut-être utilisée par une autre application.", true);
     refreshCameraList();
   }
 }
@@ -638,7 +904,7 @@ function connectSignaling(room) {
     signalQueue = signalQueue.then(() => handleSignal(JSON.parse(event.data))).catch(() => {});
   };
   socket.onclose = () => {
-    if (socket === signalSocket && localStream) setVideoStatus("Signalisation deconnectee. Cliquez sur Terminer puis rejoignez a nouveau la consultation.");
+    if (socket === signalSocket && localStream) setVideoStatus("Signalisation déconnectée. Cliquez sur Terminer puis rejoignez a nouveau la consultation.");
   };
 }
 
@@ -666,7 +932,7 @@ function createPeerConnection() {
     if (pc !== peerConnection) return;
     if (pc.connectionState === "connected") {
       remoteConnected = true;
-      setVideoStatus(`Consultation connectee. Camera : ${activeCameraLabel}.`);
+      setVideoStatus(`Consultation connectée. Caméra : ${activeCameraLabel}.`);
       checkRemoteImage(pc);
     } else if (pc.connectionState === "disconnected") {
       setVideoStatus("Connexion instable avec le correspondant, reconnexion en cours...");
@@ -689,9 +955,9 @@ async function checkRemoteImage(pc) {
   const peak = await peakLuminance(remoteTrack, remoteVideo, { firstFrameTimeoutMs: 4000, settleMs: 2000 });
   if (pc !== peerConnection) return;
   if (isBlack(peak)) {
-    setVideoStatus(`Consultation connectee, mais le correspondant n'envoie qu'une image noire (camera coupee ou camera virtuelle selectionnee de son cote). Votre camera : ${activeCameraLabel}.`);
+    setVideoStatus(`Consultation connectée, mais le correspondant n'envoie qu'une image noire (caméra coupée ou caméra virtuelle sélectionnée de son côté). Votre caméra : ${activeCameraLabel}.`);
   } else {
-    setVideoStatus(`Consultation connectee. Camera : ${activeCameraLabel}.`);
+    setVideoStatus(`Consultation connectée. Caméra : ${activeCameraLabel}.`);
   }
 }
 
@@ -705,7 +971,7 @@ async function handleSignal(message) {
   if (!message?.type || !localStream) return;
   if (message.type === "auth-ok") {
     createPeerConnection();
-    setVideoStatus(`Camera : ${activeCameraLabel}. En attente de ${isDoctor() ? "votre patient" : "votre medecin"} dans la salle...`);
+    setVideoStatus(`Caméra : ${activeCameraLabel}. En attente de ${isDoctor() ? "votre patient" : "votre médecin"} dans la salle...`);
     sendSignal({ type: "join" });
     return;
   }
@@ -715,13 +981,13 @@ async function handleSignal(message) {
   }
   if (message.type === "forbidden") {
     endCall({ notifyServer: false });
-    setVideoStatus("Cette consultation est terminee ou ne vous est pas destinee.");
+    setVideoStatus("Cette consultation est terminée ou ne vous est pas destinee.");
     refreshConsultation();
     return;
   }
   if (message.type === "room-full") {
     endCall({ notifyServer: false });
-    setVideoStatus("Vous etes deja connecte a cette consultation dans un autre onglet ou une autre fenetre.");
+    setVideoStatus("Vous êtes déjà connecté a cette consultation dans un autre onglet ou une autre fenêtre.");
     return;
   }
   if (!peerConnection) return;
@@ -729,7 +995,7 @@ async function handleSignal(message) {
     // The peer already in the room makes the offer, so the newcomer never offers into an empty room.
     const pc = createPeerConnection();
     resetRemoteVideo();
-    setVideoStatus(`Un correspondant rejoint la salle, connexion en cours... Camera : ${activeCameraLabel}.`);
+    setVideoStatus(`Un correspondant rejoint la salle, connexion en cours... Caméra : ${activeCameraLabel}.`);
     await pc.setLocalDescription(await pc.createOffer());
     sendSignal({ type: "offer", sdp: pc.localDescription });
     return;
@@ -737,11 +1003,11 @@ async function handleSignal(message) {
   if (message.type === "leave") {
     createPeerConnection();
     resetRemoteVideo();
-    setVideoStatus(`Le correspondant a quitte la salle. En attente... Camera : ${activeCameraLabel}.`);
+    setVideoStatus(`Le correspondant a quitté la salle. En attente... Caméra : ${activeCameraLabel}.`);
     return;
   }
   if (message.type === "camera-state") {
-    if (message.enabled === false) setVideoStatus(`Le correspondant a coupe sa camera. Votre camera : ${activeCameraLabel}.`);
+    if (message.enabled === false) setVideoStatus(`Le correspondant a coupé sa caméra. Votre caméra : ${activeCameraLabel}.`);
     else if (remoteConnected) checkRemoteImage(peerConnection);
     return;
   }
@@ -772,7 +1038,7 @@ async function handleSignal(message) {
 }
 
 function resetMediaButtons() {
-  [["#toggle-mic", "Micro actif"], ["#toggle-camera", "Camera active"]].forEach(([selector, text]) => {
+  [["#toggle-mic", "Micro actif"], ["#toggle-camera", "Caméra active"]].forEach(([selector, text]) => {
     const button = $(selector);
     const label = button.querySelector("span");
     if (label) label.textContent = text;
@@ -798,18 +1064,18 @@ function endCall({ notifyServer = true } = {}) {
     // Only the doctor closes the consultation; a patient who hangs up can rejoin while it is open.
     api(`/api/consultations/${encodeURIComponent(activeConsultation.room)}/end`, { method: "POST" }).catch(() => {});
     activeConsultation = null;
-    setVideoStatus("Consultation terminee. Camera inactive.");
+    setVideoStatus("Consultation terminée. Caméra inactive.");
   } else if (!isDoctor() && activeConsultation) {
-    setVideoStatus("Vous avez quitte la consultation. Vous pouvez la rejoindre tant que le medecin ne l'a pas terminee.");
+    setVideoStatus("Vous avez quitte la consultation. Vous pouvez la rejoindre tant que le médecin ne l'a pas terminée.");
   } else {
-    setVideoStatus("Camera inactive.");
+    setVideoStatus("Caméra inactive.");
   }
   updateConsultationUi();
 }
 
 function toggleTrack(kind, button, activeText, mutedText) {
   const track = localStream?.getTracks().find((item) => item.kind === kind);
-  if (!track) { toast("Activez d'abord la camera.", true); return; }
+  if (!track) { toast("Activez d'abord la caméra.", true); return; }
   track.enabled = !track.enabled;
   const label = button.querySelector("span");
   if (label) label.textContent = track.enabled ? activeText : mutedText;
@@ -821,6 +1087,13 @@ function toggleTrack(kind, button, activeText, mutedText) {
 
 function wireInteractions() {
   $("#login-form").addEventListener("submit", submitLogin);
+  $("#register-form").addEventListener("submit", submitRegister);
+  $("#show-register").addEventListener("click", () => { $("#register-error").textContent = ""; showAuthMode("register"); });
+  $("#show-login").addEventListener("click", () => { $("#login-error").textContent = ""; showAuthMode("login"); });
+  $("#patient-list").addEventListener("click", (event) => {
+    const row = event.target.closest(".patient-row");
+    if (row) selectPatient(Number(row.dataset.patientId));
+  });
   document.querySelectorAll("[data-demo-user]").forEach((button) => button.addEventListener("click", () => {
     $("#login-username").value = button.dataset.demoUser;
     $("#login-password").value = "Demo-2026!";
@@ -835,14 +1108,19 @@ function wireInteractions() {
   $("#alert-focus").addEventListener("click", () => { showView("doctor"); $("#alerts-panel").scrollIntoView({ behavior: "smooth", block: "center" }); });
   $("#vital-form").addEventListener("submit", submitVital);
   $("#consent-form").addEventListener("submit", submitConsent);
-  $("#simulate-critical").addEventListener("click", () => { const form = $("#vital-form"); form.querySelector('[name="systolic"]').value = 188; form.querySelector('[name="diastolic"]').value = 122; form.querySelector('[name="heart_rate"]').value = 138; form.querySelector('[name="spo2"]').value = 89; form.querySelector('[name="temperature"]').value = 39.2; toast("Valeurs de cas degrade pre-remplies. Envoyez-les pour tester l'alerte."); });
-  $("#alerts-list").addEventListener("click", (event) => { const target = event.target.closest(".acknowledge"); if (target) acknowledgeAlert(target.dataset.alertId); });
+  $("#simulate-critical").addEventListener("click", () => { const form = $("#vital-form"); form.querySelector('[name="systolic"]').value = 188; form.querySelector('[name="diastolic"]').value = 122; form.querySelector('[name="heart_rate"]').value = 138; form.querySelector('[name="spo2"]').value = 89; form.querySelector('[name="temperature"]').value = 39.2; toast("Valeurs de cas dégradé pré-remplies. Envoyez-les pour tester l'alerte."); });
+  $("#alerts-list").addEventListener("click", (event) => {
+    const acknowledge = event.target.closest(".acknowledge");
+    if (acknowledge) { acknowledgeAlert(acknowledge.dataset.alertId); return; }
+    const item = event.target.closest(".alert-item");
+    if (item) selectPatient(Number(item.dataset.patientId));
+  });
   $("#start-call").addEventListener("click", activateVideo);
   $("#camera-select").addEventListener("change", (event) => switchCamera(event.target.value));
   navigator.mediaDevices?.addEventListener?.("devicechange", refreshCameraList);
   $("#end-call").addEventListener("click", () => endCall());
-  $("#toggle-mic").addEventListener("click", (event) => toggleTrack("audio", event.currentTarget, "Micro actif", "Micro coupe"));
-  $("#toggle-camera").addEventListener("click", (event) => toggleTrack("video", event.currentTarget, "Camera active", "Camera coupee"));
+  $("#toggle-mic").addEventListener("click", (event) => toggleTrack("audio", event.currentTarget, "Micro actif", "Micro coupé"));
+  $("#toggle-camera").addEventListener("click", (event) => toggleTrack("video", event.currentTarget, "Caméra active", "Caméra coupée"));
   $(".mobile-menu").addEventListener("click", () => $(".sidebar").classList.toggle("open"));
 }
 
