@@ -179,7 +179,7 @@ def bearer_token(request: Request) -> Optional[str]:
 def current_user(request: Request) -> dict:
     user = user_for_token(bearer_token(request))
     if not user:
-        raise HTTPException(401, "Session absente ou expiree. Veuillez vous reconnecter.")
+        raise HTTPException(401, "Session absente ou expirée. Veuillez vous reconnecter.")
     return user
 
 
@@ -430,7 +430,7 @@ async def add_vital(patient_id: int, vital: VitalInput, user: dict = Depends(cur
 @app.post("/api/patients/{patient_id}/consents", status_code=201)
 async def add_consent(patient_id: int, consent: ConsentInput, user: dict = Depends(current_user)):
     if user["role"] != "patient" or user["patient_id"] != patient_id:
-        raise HTTPException(403, "Seul le patient concerne peut donner ou retirer son consentement.")
+        raise HTTPException(403, "Seul le patient concerné peut donner ou retirer son consentement.")
     created_at = now_iso()
     with connection() as db:
         require_patient(db, patient_id)

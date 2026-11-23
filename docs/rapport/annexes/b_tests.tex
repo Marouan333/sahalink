@@ -1,0 +1,65 @@
+\chapter{Résultats des tests automatisés}
+\label{ann:tests}
+
+La suite se lance par \code{python -m unittest discover -s tests}. Sortie obtenue sur le dépôt~:
+
+\begin{lstlisting}[language={}, numbers=none, basicstyle=\ttfamily\scriptsize]
+.....................................
+----------------------------------------------------------------------
+Ran 37 tests in 7.7s
+
+OK
+\end{lstlisting}
+
+\section{Liste des 37 tests}
+
+\renewcommand{\arraystretch}{0.8}
+\begin{longtable}{@{}p{7.6cm} p{8.1cm}@{}}
+\caption{Tests de \code{tests/test\_api.py} et comportement vérifié.}\label{tab:listetests}\\
+\toprule
+\textbf{Test} & \textbf{Comportement vérifié} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Test} & \textbf{Comportement vérifié} \\
+\midrule
+\endhead
+\scriptsize\code{health\_check\_is\_public} & \scriptsize Contrôle de santé public \\
+\scriptsize\code{login\_rejects\_a\_wrong\_password} & \scriptsize Mauvais mot de passe refusé (401) \\
+\scriptsize\code{me\_returns\_the\_role} & \scriptsize La session retourne l'utilisateur et son rôle \\
+\scriptsize\code{logout\_invalidates\_the\_session} & \scriptsize La déconnexion révoque le jeton \\
+\scriptsize\code{health\_data\_requires\_a\_session} & \scriptsize Routes de données sans session refusées (401) \\
+\scriptsize\code{patient\_cannot\_read\_alerts\_or\_acknowledge} & \scriptsize Patient sans accès aux alertes (403) \\
+\scriptsize\code{patient\_cannot\_read\_another\_patient} & \scriptsize Patient sans accès à un autre dossier (403) \\
+\scriptsize\code{only\_the\_patient\_can\_give\_consent} & \scriptsize Seul le patient concerné consent \\
+\scriptsize\code{normal\_vital\_is\_stored\_without\_alert} & \scriptsize Mesure normale enregistrée sans alerte \\
+\scriptsize\code{critical\_vital\_alerts\_the\_doctor} & \scriptsize Mesure critique, alerte au médecin \\
+\scriptsize\code{doctor\_acknowledges\_alert} & \scriptsize Le médecin acquitte l'alerte \\
+\scriptsize\code{invalid\_vital\_is\_rejected} & \scriptsize Valeur impossible rejetée (422) \\
+\scriptsize\code{consultation\_requires\_consent} & \scriptsize Appel sans consentement refusé (409) \\
+\scriptsize\code{doctor\_dashboard\_is\_notified\_live} & \scriptsize Médecin notifié en direct (consentement, mesure) \\
+\scriptsize\code{patient\_never\_receives\_the\_doctors\_alerts} & \scriptsize Le patient ne reçoit jamais les alertes \\
+\scriptsize\code{patient\_sees\_the\_invitation} & \scriptsize Invitation reçue en temps réel \\
+\scriptsize\code{signaling\_relays\_between\_doctor\_and\_patient} & \scriptsize Signalisation relayée entre les deux pairs \\
+\scriptsize\code{signaling\_rejects\_a\_missing\_token} & \scriptsize Connexion sans jeton refusée \\
+\scriptsize\code{signaling\_rejects\_an\_unknown\_room} & \scriptsize Salle inconnue ou étrangère refusée \\
+\scriptsize\code{signaling\_room\_rejects\_a\_third\_peer} & \scriptsize 3\textsuperscript{e} participant refusé (\code{room-full}) \\
+\scriptsize\code{signaling\_notifies\_remaining\_peer} & \scriptsize Départ d'un pair signalé à l'autre \\
+\scriptsize\code{doctor\_ending\_the\_consultation} & \scriptsize Fin d'appel, salle fermée, patient prévenu \\
+\scriptsize\code{rtc\_config\_requires\_a\_session} & \scriptsize Configuration \ac{ICE} sous session \\
+\scriptsize\code{websocket\_accepts\_the\_public\_host} & \scriptsize Origine d'un proxy acceptée, autre site refusé \\
+\scriptsize\code{a\_visitor\_can\_register\_as\_a\_patient} & \scriptsize Inscription patient et connexion \\
+\scriptsize\code{registration\_is\_validated} & \scriptsize Inscriptions invalides refusées (422, 409) \\
+\scriptsize\code{a\_visitor\_cannot\_choose\_the\_doctor\_role} & \scriptsize Rôle médecin impossible à demander \\
+\scriptsize\code{doctor\_lists\_patients\_and\_a\_patient\_cannot} & \scriptsize Liste des patients réservée au médecin \\
+\scriptsize\code{dashboard\_follows\_the\_selected\_patient} & \scriptsize Tableau de bord par patient \\
+\scriptsize\code{doctor\_is\_told\_when\_a\_patient\_registers} & \scriptsize Médecin informé d'une inscription \\
+\scriptsize\code{starting\_a\_consultation\_with\_another\_patient} & \scriptsize Nouvel appel ferme l'ancien \\
+\scriptsize\code{login\_is\_locked\_after\_repeated\_failures} & \scriptsize Blocage après huit échecs (429) \\
+\scriptsize\code{registration\_is\_rate\_limited\_per\_address} & \scriptsize Inscriptions limitées par adresse (429) \\
+\scriptsize\code{pages\_carry\_a\_strict\_content\_security\_policy} & \scriptsize Politique \ac{CSP} stricte et en-têtes \\
+\scriptsize\code{hsts\_is\_sent\_only\_over\_https} & \scriptsize \ac{HSTS} envoyé seulement en HTTPS \\
+\scriptsize\code{http\_is\_redirected\_to\_https\_when\_enforcement\_is\_on} & \scriptsize Redirection 308 vers HTTPS si activée \\
+\scriptsize\code{tests\_do\_not\_touch\_the\_demo\_database} & \scriptsize Base de démonstration intacte \\
+\bottomrule
+\end{longtable}

@@ -1,0 +1,69 @@
+% ============================================================================
+% Chapitre 8 : Conclusion et perspectives
+% ============================================================================
+\chapter{Conclusion et perspectives}
+\label{chap:conclusion}
+
+\introchap
+
+Ce dernier chapitre dresse le bilan du projet par rapport aux livrables du cahier des charges, énonce les limites que nous assumons, propose des perspectives d'évolution et résume les compétences mobilisées.
+
+\section{Bilan des livrables}
+
+\begin{table}[H]
+\centering
+\caption{Bilan des livrables du cahier des charges.}
+\label{tab:bilan}
+\small
+\begin{tabularx}{\textwidth}{@{}X X c@{}}
+\toprule
+\textbf{Livrable attendu} & \textbf{Réalisation} & \textbf{Statut} \\
+\midrule
+Schéma d'architecture légendé & Figure~\ref{fig:architecture}, chapitre~\ref{chap:conception} & Livré \\
+Modèles (données, BPMN) & Figures~\ref{fig:er} et~\ref{fig:bpmn} & Livré \\
+Jeu de données et méthode de simulation & Données fictives, compte de démonstration, bouton de simulation d'alerte & Livré \\
+Fichiers de configuration et de déploiement & \code{requirements.txt}, \code{Procfile}, \code{render.yaml}, variables d'environnement & Livré \\
+Code source avec installation et exécution & Dépôt Git, annexe~\ref{ann:installation} & Livré \\
+Prototype fonctionnel (front et back) & Serveur FastAPI, SQLite, interfaces patient et médecin, WebRTC & Livré \\
+Scénario complet patient-médecin avec cas dégradé & Tableau~\ref{tab:deroule}, scénarios V1 à V20 & Livré \\
+Résultats chiffrés et discussion critique & Chapitre~\ref{chap:validation}, 37 tests, couverture 92~\% & Livré \\
+Note de sécurité, confidentialité, consentement, loi 09-08 & Chapitre~\ref{chap:securite} & Livré \\
+Rapport technique et présentation orale & Ce document, plan de présentation et script de démonstration & Livré \\
+Score d'utilisabilité de testeurs réels & Protocole et script fournis, essais à réaliser & Non réalisé \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Le résultat principal est un prototype de bout en bout qui démontre le parcours complet~: consentement, saisie de constantes, détection d'un cas dégradé, alerte en temps réel, invitation, consultation vidéo directe entre navigateurs et clôture. Les quatre dimensions demandées (technique, normative, organisationnelle, réglementaire) sont traitées, avec des limites explicites.
+
+\section{Limites assumées}
+
+\begin{itemize}
+  \item \textbf{Les données sont entièrement simulées.} Les conclusions valent pour le prototype, pas pour une pratique clinique réelle.
+  \item \textbf{Seuils non validés cliniquement}, identiques pour tous les patients, alors qu'en pratique ils devraient être adaptés à chacun.
+  \item \textbf{Utilisabilité non mesurée} auprès de testeurs réels~: seul le protocole est fourni.
+  \item \textbf{Un seul serveur, SQLite}~: pas de passage à l'échelle, compteurs de limitation et liste des connexions en mémoire, clés étrangères déclarées mais non appliquées par SQLite (le code vérifie lui-même l'existence du patient).
+  \item \textbf{Pas de relais TURN fourni par défaut}~: certains réseaux stricts bloqueraient la vidéo directe.
+  \item \textbf{Pas de chiffrement au repos, pas de second facteur}, jeton de session dans le stockage de l'onglet.
+  \item \textbf{Pas de test automatique de l'interface} ni de la vidéo réelle, validées manuellement.
+\end{itemize}
+
+\section{Perspectives}
+
+\begin{enumerate}
+  \item \textbf{Migrer vers PostgreSQL}~: l'accès à la base passe par une seule fonction, la migration serait localisée.
+  \item \textbf{Fournir un relais \ac{TURN}} et mesurer le taux de réussite des appels sur réseaux mobiles.
+  \item \textbf{Renforcer l'authentification}~: second facteur, vérification du statut de médecin, cookie \code{HttpOnly}.
+  \item \textbf{Journal d'audit} inviolable des accès et chiffrement des données au repos.
+  \item \textbf{Seuils personnalisés} par patient, validés avec un médecin, et connexion à des dispositifs de mesure réels.
+  \item \textbf{Formalités et conformité}~: déclaration ou autorisation de la \ac{CNDP}, politique de conservation, exercice des droits (rectification, suppression).
+  \item \textbf{Tests complémentaires}~: tests de charge, tests de l'interface, essais d'utilisabilité avec le score \ac{SUS}.
+\end{enumerate}
+
+\section{Compétences mobilisées}
+
+Cadrage d'un problème de soins, modélisation, développement d'un serveur et d'interfaces, temps réel et vidéo WebRTC, sécurité des secrets et des accès, lecture de textes de loi, validation par des tests et des mesures, et travail en équipe autour d'un contrat commun.
+
+\conclchap
+
+SahaLink atteint son objectif~: démontrer, avec des données exclusivement fictives, un parcours complet de suivi à distance et de téléconsultation entre un patient et un médecin identifiés, avec une sécurité implémentée et des limites assumées. Les prochaines étapes naturelles sont l'évaluation par des utilisateurs réels, le renforcement de l'authentification et la montée en charge, préalables à toute expérimentation clinique.

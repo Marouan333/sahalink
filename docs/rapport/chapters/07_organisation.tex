@@ -1,0 +1,68 @@
+% ============================================================================
+% Chapitre 7 : Aspects organisationnels et humains
+% ============================================================================
+\chapter{Aspects organisationnels et humains}
+\label{chap:organisation}
+
+\introchap
+
+Une plateforme de téléconsultation ne vit pas seule~: elle s'insère dans un établissement, des acteurs, des habitudes de travail et des contraintes. Ce chapitre décrit le parcours patient-médecin dans son contexte organisationnel, les contraintes de l'établissement, la formation et l'adoption par les utilisateurs, et l'organisation de l'équipe projet qui a réalisé le prototype.
+
+\section{Parcours dans l'établissement}
+
+Dans un centre de santé qui suit des patients hypertendus, le parcours est le suivant. Le patient reçoit un compte ou crée le sien, lit et accepte le consentement, puis mesure ses constantes à domicile et les saisit. Le médecin, qui ne peut pas surveiller chaque patient en continu, est prévenu uniquement lorsqu'un seuil est dépassé~: il consulte l'historique, décide s'il faut acquitter l'alerte sans appel ou ouvrir une téléconsultation, et conserve la décision médicale. La figure~\ref{fig:bpmn} du chapitre~\ref{chap:conception} formalise ce parcours.
+
+Ce fonctionnement modifie la manière de travailler~: le médecin passe d'une surveillance ponctuelle (à la visite) à une surveillance par exception (sur alerte), et le patient devient acteur de son suivi. La plateforme complète les visites physiques, comme le recommande l'\ac{OMS}~\cite{oms2010}, sans les remplacer.
+
+\section{Contraintes de l'établissement}
+
+\begin{table}[H]
+\centering
+\caption{Contraintes de l'établissement et réponse du prototype.}
+\label{tab:contraintes}
+\begin{tabularx}{\textwidth}{@{}X X@{}}
+\toprule
+\textbf{Contrainte} & \textbf{Réponse du prototype} \\
+\midrule
+Secret médical et confidentialité & Rôles, accès limité au propre dossier, salle vidéo réservée \\
+Consentement du patient avant tout acte & Consentement bloquant, horodaté, retirable \\
+Connectivité variable chez le patient & Vidéo pair à pair, configuration \ac{TURN} possible pour les réseaux stricts \\
+Charge de travail du médecin & Alertes sur seuils uniquement, une alerte par mesure au plus, liste des patients triée par alertes \\
+Matériel du patient (caméra, navigateur) & Navigateur seul, sans installation, choix de caméra et diagnostic \\
+Hébergement et données de santé & Données fictives~; hébergement agréé et formalités \ac{CNDP} nécessaires en réel \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Formation et adoption}
+
+Une prise en main courte suffit~: environ un quart d'heure pour le patient (compte, consentement, saisie, autorisation de la caméra) et une demi-heure pour le médecin (liste des patients, alertes, graphiques, démarrage d'une consultation). L'interface en français, la bannière d'invitation et le bouton \enquote{Rejoindre} visent à supprimer toute manipulation technique côté patient. L'adoption suppose aussi de rassurer~: l'écran de consentement explique la finalité, et l'application précise en permanence que les données sont simulées.
+
+\section{Organisation de l'équipe projet}
+
+Le projet a été réalisé à six, avec un dépôt Git commun, une répartition par domaine et des fichiers de code correspondant à chaque responsabilité.
+
+\begin{table}[H]
+\centering
+\caption{Répartition des responsabilités et correspondance dans le code.}
+\label{tab:roles}
+\small
+\begin{tabularx}{\textwidth}{@{}l l X@{}}
+\toprule
+\textbf{Membre} & \textbf{Responsabilité} & \textbf{Livrable dans le dépôt} \\
+\midrule
+Marouan \textsc{Ezbakhe} & API et base de données & Routes, validation, schéma SQL, rôles (\code{app/main.py}, \code{app/database.py}) \\
+Aymane \textsc{Issami} & WebRTC & Signalisation, offre et réponse, \ac{ICE} (\code{app.js}, \code{signaling\_socket}) \\
+Mohamed \textsc{Hamdouch} & Interface patient & Connexion, consentement, saisie, rejoindre une consultation \\
+Hiba \textsc{Benzahra} & Interface médecin & Tableau de bord, alertes, démarrage de la consultation \\
+Zaid \textsc{Hsain} & Alertes et données simulées & Seuils, envoi temps réel, jeu de données (\code{alert\_for}, \code{send\_event}) \\
+Houssam \textsc{Kichchou} & Sécurité & Hachage, sessions, rôles, consentement, lois (\code{app/auth.py}, note de sécurité) \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Conformément à l'exigence que chaque membre sache répondre sur l'ensemble du projet, le dépôt contient un plan de présentation avec la répartition des parties, un script de démonstration et une liste de questions probables.
+
+\conclchap
+
+Le prototype s'inscrit dans un parcours où le médecin est prévenu par exception et garde la décision, où le patient est acteur de son suivi, et où le consentement et le secret médical structurent l'usage. Les contraintes de l'établissement (confidentialité, connectivité, charge de travail) ont chacune une réponse dans le prototype, et l'équipe s'est organisée autour de responsabilités claires. Le dernier chapitre dresse le bilan du projet.

@@ -1,0 +1,46 @@
+\chapter{Installation et exécution}
+\label{ann:installation}
+
+\section{Installation}
+
+\begin{lstlisting}[language={}, numbers=none, caption={Installation sous Windows (PowerShell).}]
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+uvicorn app.main:app --reload
+\end{lstlisting}
+
+L'application est alors disponible à l'adresse \code{http://127.0.0.1:8000}, et la documentation interactive de l'\ac{API} à \code{http://127.0.0.1:8000/docs}. Les adresses \code{localhost} et \code{127.0.0.1} sont considérées comme des origines sécurisées par les navigateurs~: la caméra y fonctionne sans configuration supplémentaire.
+
+\section{Comptes de démonstration}
+
+Deux comptes fictifs sont créés automatiquement au premier démarrage.
+
+\begin{table}[H]
+\centering
+\caption{Comptes de démonstration (mot de passe public).}
+\label{tab:comptes}
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Rôle} & \textbf{Identifiant} & \textbf{Mot de passe} \\
+\midrule
+Médecin & \code{dr.benali} & \code{Demo-2026!} \\
+Patient & \code{amal} & \code{Demo-2026!} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Tester le parcours à deux}
+
+Chaque onglet garde sa propre session~: le médecin (\code{dr.benali}) et le patient (\code{amal}, ou un compte créé) peuvent être connectés côte à côte dans deux fenêtres du même navigateur. Le déroulé à suivre est celui du tableau~\ref{tab:deroule}.
+
+\section{Tests, mesures et exposition publique}
+
+\begin{lstlisting}[language={}, numbers=none]
+python -m unittest discover -s tests                    # 37 tests
+python scripts/benchmark.py                              # mesures chiffrées
+python scripts/smoke_test.py http://127.0.0.1:8000       # parcours complet
+cloudflared tunnel --url http://127.0.0.1:8000           # tunnel HTTPS de démonstration
+\end{lstlisting}
+
+Le tunnel affiche une adresse \ac{HTTPS} temporaire, à ouvrir des deux côtés~; elle change à chaque lancement et cesse de fonctionner quand l'ordinateur qui héberge le serveur s'éteint. Pour un hébergement permanent, le \code{Procfile} lance \code{uvicorn} derrière le proxy \ac{HTTPS} de l'hébergeur et \code{SAHALINK\_FORCE\_HTTPS=1} active la redirection et \ac{HSTS}. Ce rapport se compile par \code{make} dans le dossier \code{docs/rapport}.

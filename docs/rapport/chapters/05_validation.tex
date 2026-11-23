@@ -1,0 +1,181 @@
+% ============================================================================
+% Chapitre 5 : Validation et résultats
+% ============================================================================
+\chapter{Validation et résultats}
+\label{chap:validation}
+
+\introchap
+
+Un prototype n'est crédible que s'il est évalué. Ce chapitre présente le protocole de validation (vingt scénarios), le scénario clinique complet avec ses cas dégradés, les tests automatisés (leur nombre, leur répartition, leur couverture, et pourquoi ce nombre), les résultats chiffrés mesurés sur le serveur, le protocole d'utilisabilité, puis une discussion critique des résultats et de leurs limites.
+
+\section{Protocole de validation}
+
+La validation repose sur vingt scénarios, numérotés V1 à V20 (tableau~\ref{tab:scenarios}). Tous sont rejoués automatiquement, sauf la vidéo réelle (V6) et la vérification dans le navigateur de la politique de sécurité du contenu (V18), qui demandent respectivement deux navigateurs avec matériel et une inspection visuelle.
+
+\begin{table}[H]
+\centering
+\caption{Scénarios de validation.}
+\label{tab:scenarios}
+\scriptsize
+\begin{tabularx}{\textwidth}{@{}l X X X@{}}
+\toprule
+\textbf{ID} & \textbf{Action} & \textbf{Résultat attendu} & \textbf{Indicateur} \\
+\midrule
+V1 & Ouvrir \code{/api/health} & Service disponible & HTTP 200 \\
+V2 & Envoyer une mesure normale & Enregistrée, sans alerte & 1 écriture, 0 alerte \\
+V3 & Envoyer une \ac{SpO2} de 89~\% & Alerte critique créée et diffusée & 1 alerte, événement WS \\
+V4 & Acquitter l'alerte & Statut \code{acknowledged} & 1 modification \\
+V5 & Envoyer une valeur hors plage & Mesure rejetée & HTTP 422 \\
+V6 & Médecin et patient dans deux fenêtres, vidéo & Flux local et distant actifs & Test manuel \\
+V7 & Route de santé sans session & Accès refusé & HTTP 401 \\
+V8 & Patient lit les alertes ou un autre dossier & Accès refusé & HTTP 403 \\
+V9 & Appel sans consentement & Démarrage bloqué & HTTP 409 \\
+V10 & Appel après consentement & Invitation reçue en temps réel & Événement \code{invitation} \\
+V11 & Salle vidéo sans jeton valide ou par un tiers & Connexion refusée & \code{auth-failed}, \code{forbidden} \\
+V12 & Le médecin termine la consultation & Patient notifié, salle fermée & Événement \code{consultation-ended} \\
+V13 & Consentement ou mesure normale du patient & Tableau de bord du médecin mis à jour en direct & Événements \code{consent}, \code{vital} \\
+V14 & Inscription valide d'un patient & Compte créé, médecin informé & HTTP 201, \code{patient-registered} \\
+V15 & Inscription invalide, rôle médecin demandé & Compte refusé, rôle toujours patient & HTTP 422 ou 409 \\
+V16 & Liste des patients, tableau de bord par patient & Correct pour le médecin, refusé au patient & 200, 403, 404 \\
+V17 & Huit échecs de connexion, inscriptions répétées & Verrouillage temporaire, plafond & HTTP 429 \\
+V18 & Nom contenant un script, chargement de la page & Script inerte, en-têtes de sécurité présents & En-tête \ac{CSP} \\
+V19 & Consultation avec un second patient & Ancienne consultation fermée, patient prévenu & \code{consultation-ended} puis \code{invitation} \\
+V20 & Requête \ac{HTTPS} derrière un proxy, puis HTTP & \ac{HSTS} envoyé, redirection 308 vers HTTPS & En-tête, HTTP 308 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Scénario clinique complet}
+
+Le scénario suivant a été exécuté dans deux fenêtres (médecin et patient), puis rejoué par le script \code{scripts/smoke\_test.py} contre le serveur local et contre le lien public.
+
+\begin{table}[H]
+\centering
+\caption{Déroulé du scénario clinique complet.}
+\label{tab:deroule}
+\small
+\begin{tabularx}{\textwidth}{@{}c l X@{}}
+\toprule
+\textbf{Étape} & \textbf{Acteur} & \textbf{Action et résultat} \\
+\midrule
+1 & Patient & Connexion (ou création du compte)~: espace patient ouvert \\
+2 & Médecin & Connexion, tentative de démarrer une consultation~: \textbf{refus}, le patient n'a pas donné son consentement (cas dégradé~1) \\
+3 & Patient & Accepte le consentement~: le tableau de bord du médecin passe à \enquote{Confirmé} \\
+4 & Patient & Envoie une mesure normale~: aucune alerte, ligne ajoutée à l'historique \\
+5 & Patient & \enquote{Simuler une alerte}, envoie 188/122, 138~bpm, 89~\%, 39,2~\textdegree C~: \textbf{alerte critique} immédiate chez le médecin (cas dégradé~2) \\
+6 & Médecin & Acquitte l'alerte~: compteur à zéro \\
+7 & Médecin & Démarre la consultation~: le patient voit l'invitation sans recharger \\
+8 & Patient & Rejoint~: vidéo dans les deux sens \\
+9 & Médecin & Coupe puis rallume la caméra~: le patient est informé de l'état \\
+10 & Médecin & Termine la consultation~: le patient est prévenu, les caméras s'arrêtent \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Les cas dégradés couverts, avec les tests qui les vérifient, sont~: valeur impossible rejetée (HTTP 422), constante hors seuil (alerte), consentement absent ou retiré (HTTP 409), troisième participant dans la salle (\code{room-full}), tiers sans jeton ou hors consultation (\code{auth-failed}, \code{forbidden}), départ du correspondant (message \code{leave}), et caméra noire ou virtuelle (diagnostic dans l'interface, test manuel).
+
+\section{Tests automatisés}
+
+\subsection{Nombre, répartition et couverture}
+
+La suite compte \textbf{37 tests automatisés}, tous réussis, exécutés en environ huit secondes sur une base de données temporaire distincte de la base de démonstration (un test vérifie explicitement cette isolation). La liste complète figure en annexe~\ref{ann:tests}.
+
+\begin{table}[H]
+\centering
+\caption{Répartition des 37 tests par domaine.}
+\label{tab:repartition}
+\begin{tabularx}{\textwidth}{@{}X c l@{}}
+\toprule
+\textbf{Domaine vérifié} & \textbf{Tests} & \textbf{Scénarios} \\
+\midrule
+Connexion et sessions (mauvais mot de passe, rôle, déconnexion) & 3 & V7 \\
+Droits d'accès (session obligatoire, alertes, autre dossier) & 3 & V7, V8 \\
+Consentement (qui peut le donner, appel sans accord) & 2 & V8, V9 \\
+Mesures et alertes (normale, critique, acquittement, impossible) & 4 & V2 à V5 \\
+Événements temps réel (tableau de bord, alertes réservées, invitation) & 3 & V10, V13 \\
+Signalisation et salle vidéo (relais, jeton, salle, 3\textsuperscript{e} pair, départ, fin, \ac{ICE}, origine) & 8 & V11, V12 \\
+Inscription et patients (inscription, validation, rôle, liste, tableau de bord, notification, remplacement) & 7 & V14 à V16, V19 \\
+Protections (verrouillage, limite d'inscriptions, \ac{CSP}, \ac{HSTS}, redirection \ac{HTTPS}) & 5 & V17, V18, V20 \\
+Service et isolation (santé du service, base de démonstration intacte) & 2 & V1 \\
+\midrule
+\textbf{Total} & \textbf{37} & \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+La couverture a été mesurée avec l'outil \code{coverage} (couverture de lignes et de branches) sur le paquet \code{app}~: \textbf{92~\%} au total.
+
+Par fichier, la couverture est de 92~\% pour \code{app/main.py} (413 instructions, 30 non couvertes), 95~\% pour \code{app/auth.py} et 89~\% pour \code{app/database.py}, soit 487 instructions et 104 branches au total.
+
+\subsection{Pourquoi 37 tests ?}
+
+\begin{callout}
+\textbf{Question~: pourquoi 37 tests, est-ce suffisant~?}
+
+\textbf{Le nombre n'a pas été choisi~: il résulte des règles à vérifier.} Nous avons écrit un test par règle de sécurité et par scénario du parcours, et il y en a 37. Chaque besoin B1 à B12 (tableau~\ref{tab:besoins}) est relié à une vérification (un test automatique, sauf B9 qui relève de la structure des données et B10 qui se teste à la main avec une caméra), chaque cas dégradé du cahier des charges est couvert, et chaque code d'erreur du serveur (401, 403, 409, 422, 429) est provoqué par un test. La répartition du tableau~\ref{tab:repartition} montre que les domaines les plus sensibles (droits, consentement, salle vidéo, protections) concentrent le plus de tests.
+
+\textbf{Le nombre de tests n'est pas, en lui-même, un indicateur de qualité.} L'indicateur pertinent est la \textbf{couverture}, que nous avons mesurée~: 92~\% des instructions et des branches du serveur sont exécutées par les tests, et les lignes non couvertes sont surtout la lecture de la variable \code{ICE\_SERVERS}, la route de lecture d'un seul patient, et des cas d'erreur rares (client déconnecté pendant un envoi, délai d'authentification d'un \ac{WS}). Nous le présentons donc avec la couverture et la traçabilité vers les besoins, plutôt que comme un chiffre isolé.
+
+\textbf{Ce que ces tests ne prouvent pas.} Ils ne couvrent ni le code JavaScript de l'interface, ni la capture vidéo réelle (validée à la main), ni la tenue en charge avec de nombreux utilisateurs simultanés. Le taux de détection de 100~\% mesure la correction de règles déterministes, pas la sensibilité clinique des seuils.
+\end{callout}
+
+\section{Résultats chiffrés}
+
+Les mesures ont été obtenues par le script \code{scripts/benchmark.py}, qui interroge l'\ac{API} avec le client de test de FastAPI sur une base temporaire, après connexion. Elles caractérisent le prototype, pas une charge de production.
+
+\begin{table}[H]
+\centering
+\caption{Résultats mesurés sur le serveur de test (machine locale).}
+\label{tab:resultats}
+\small
+\begin{tabularx}{\textwidth}{@{}X X X@{}}
+\toprule
+\textbf{Indicateur} & \textbf{Protocole} & \textbf{Résultat} \\
+\midrule
+Détection du cas dégradé & 6 profils cliniques (tension, \ac{SpO2}, bradycardie, tachycardie, fièvre, combinaison) & \textbf{6 sur 6, soit 100~\%} \\
+Rejet des valeurs hors plage & 3 entrées hors bornes (tension 500, \ac{SpO2} 150, température 60) & \textbf{3 sur 3, soit 100~\%} \\
+Écriture d'une mesure normale & 30 envois successifs, session patient & moyenne 44,5~ms, \textbf{médiane 30,9~ms}, min 24,0~ms, max 118,7~ms \\
+Création et diffusion d'une alerte & 6 mesures dégradées & moyenne 25,8~ms, min 23,4~ms, max 28,2~ms \\
+Acquittement d'une alerte & 10 cycles, session médecin & moyenne 28,2~ms, min 25,3~ms, max 33,3~ms \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  ybar, bar width=22pt, width=0.86\textwidth, height=6.2cm,
+  ymin=0, ymax=130, ylabel={Temps (ms)},
+  symbolic x coords={Écriture (médiane),Alerte (moyenne),Acquittement (moyenne)},
+  xtick=data, x tick label style={font=\small},
+  nodes near coords, nodes near coords style={font=\small},
+  enlarge x limits=0.25,
+  legend style={at={(0.5,-0.2)}, anchor=north, legend columns=-1, font=\small},
+  ymajorgrids=true, grid style={gray!25}
+]
+\addplot[fill=ensambleu, draw=ensambleu] coordinates {(Écriture (médiane),30.9) (Alerte (moyenne),25.8) (Acquittement (moyenne),28.2)};
+\addplot[fill=ensamrouge!70, draw=ensamrouge] coordinates {(Écriture (médiane),118.7) (Alerte (moyenne),28.2) (Acquittement (moyenne),33.3)};
+\legend{Valeur centrale, Maximum observé}
+\end{axis}
+\end{tikzpicture}
+\caption{Temps de traitement mesurés sur le serveur de test.}
+\label{fig:latences}
+\end{figure}
+
+\section{Utilisabilité}
+
+Un protocole d'évaluation par le questionnaire \ac{SUS}~\cite{brooke1996} est fourni dans le dépôt (\code{docs/test-utilisabilite.md}), avec un script de calcul du score (\code{scripts/sus\_score.py}) selon la formule habituelle~: pour chacune des dix réponses, on retranche 1 aux items impairs et on soustrait la réponse de 5 pour les items pairs, puis on multiplie la somme par 2,5 pour obtenir un score sur 100. \textbf{Les scores de testeurs réels n'ont pas encore été recueillis}~: aucun résultat n'est donc revendiqué dans ce rapport, et le score devra être renseigné après les essais avec des utilisateurs.
+
+\section{Discussion critique et limites}
+
+\begin{itemize}
+  \item Le taux de détection de 100~\% reflète l'implémentation correcte de règles déterministes, pas une validation clinique des seuils, qui devraient être revus avec un médecin avant tout usage réel.
+  \item Les latences excluent le réseau et la concurrence. Elles varient d'une exécution à l'autre~: un premier passage, avec d'autres traitements lourds sur la machine, donnait une moyenne de 178~ms pour l'écriture normale. L'écart entre la médiane (30,9~ms) et le maximum (118,7~ms) vient surtout de la première requête, qui initialise la connexion à SQLite.
+  \item Aucun essai de charge n'est revendiqué~: un protocole plus rigoureux répéterait le test et publierait la médiane des exécutions.
+  \item Une plateforme certifiée ajoute une authentification forte, une architecture multi-établissements et un hébergement agréé. SahaLink démontre le parcours fonctionnel complet, pas une alternative à ces plateformes.
+\end{itemize}
+
+\conclchap
+
+La validation combine vingt scénarios, un scénario clinique de dix étapes, 37 tests automatisés qui couvrent 92~\% du serveur, et des mesures chiffrées. Les 37 tests ne sont pas un objectif~: ils correspondent à une règle vérifiée chacun, avec une couverture mesurée et des limites énoncées. Les chiffres montrent que les règles sont correctement appliquées et que le prototype réagit en quelques dizaines de millisecondes sur le serveur de test. Le chapitre suivant traite de la sécurité et de la conformité, que ces tests contribuent à démontrer.

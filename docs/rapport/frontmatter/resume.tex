@@ -1,0 +1,28 @@
+\chapter*{Résumé}
+\addcontentsline{toc}{chapter}{Résumé}
+\markboth{Résumé}{}
+
+Ce rapport présente la conception et la réalisation de \textbf{SahaLink}, un prototype de plateforme de téléconsultation avec suivi à distance, développé dans le cadre du mini-projet~2 du module \enquote{Santé digitale et ingénierie des systèmes de santé} de l'\ac{ENSAM} Rabat. Le prototype relie un patient et un médecin~: le patient donne son consentement et saisit ses constantes physiologiques (tension, fréquence cardiaque, \ac{SpO2}, température), le médecin suit leur évolution sur des graphiques, reçoit en temps réel une alerte lorsqu'un seuil est dépassé, puis ouvre une consultation vidéo que le patient rejoint sur invitation.
+
+Le système repose sur trois briques. Un \textbf{backend} FastAPI expose une \ac{API} \ac{REST} et deux canaux \ac{WS}~: l'un pour les alertes et les invitations, l'autre pour la signalisation \textbf{WebRTC}. Une \textbf{base SQLite} de sept tables conserve les patients, comptes, sessions, consentements, constantes, alertes et consultations. Une \textbf{interface web} en français propose un espace patient et un espace médecin. La vidéo circule directement entre les deux navigateurs, chiffrée de bout en bout, sans passer par le serveur.
+
+La \textbf{sécurité} est traitée dans le code~: mots de passe hachés avec sel (\ac{PBKDF2}), jetons de session stockés sous forme d'empreinte, contrôle des rôles sur chaque route, consentement bloquant (HTTP~409), verrouillage après échecs de connexion, politique de sécurité du contenu, \ac{HTTPS} imposé et \ac{HSTS}. Le cadre légal (loi marocaine~09-08, loi~131-13, rapport de l'\ac{OMS}) a été lu dans les textes officiels et relié aux mesures du prototype.
+
+La validation s'appuie sur \textbf{37 tests automatisés}, qui couvrent 92~\% du code du serveur, sur un scénario clinique complet incluant des cas dégradés, et sur des mesures chiffrées~: 6 profils dangereux détectés sur 6, 3 valeurs impossibles rejetées sur 3, écriture d'une mesure en 31~ms en médiane sur le serveur de test. Les limites, notamment des données entièrement simulées, l'absence de relais \ac{TURN} par défaut et de chiffrement des données au repos, sont discutées en conclusion.
+
+\bigskip
+\noindent\textbf{Mots-clés :} téléconsultation, télémédecine, suivi à distance, WebRTC, alertes sur seuils, FastAPI, SQLite, consentement, loi~09-08, loi~131-13.
+
+\vspace{1cm}
+\chapter*{Abstract}
+\addcontentsline{toc}{chapter}{Abstract}
+\markboth{Abstract}{}
+
+This report presents the design and implementation of \textbf{SahaLink}, a teleconsultation and remote monitoring prototype built for the mini-project~2 of the \enquote{Digital health and health systems engineering} module at ENSAM Rabat. The patient gives consent and enters physiological readings (blood pressure, heart rate, oxygen saturation, temperature); the doctor follows them on charts, receives a real-time alert when a threshold is crossed, and starts a video consultation that the patient joins on invitation.
+
+A FastAPI \textbf{backend} exposes a \ac{REST} \ac{API} and two WebSocket channels (alerts and invitations, WebRTC signalling). A seven-table \textbf{SQLite database} stores patients, accounts, sessions, consents, readings, alerts and consultations. A French \textbf{web interface} offers a patient space and a doctor space. Video flows directly between the two browsers, encrypted end to end, and never through the server.
+
+\textbf{Security} is implemented in the code: salted password hashing, hashed session tokens, role checks on every route, a blocking consent gate, login lockout, a content security policy, enforced \ac{HTTPS} and \ac{HSTS}. The Moroccan laws~09-08 and~131-13 and the WHO telemedicine report were read in their official text and mapped to the prototype. Validation relies on \textbf{37 automated tests} covering 92\% of the server code, a complete clinical scenario with degraded cases, and measured results: 6 out of 6 dangerous profiles detected, 3 out of 3 impossible values rejected, a median write time of 31~ms on the test server. The limitations, including fully simulated data, no default TURN relay and no encryption at rest, are discussed in the conclusion.
+
+\bigskip
+\noindent\textbf{Keywords:} teleconsultation, telemedicine, remote monitoring, WebRTC, threshold alerts, FastAPI, SQLite, consent, Moroccan law~09-08.

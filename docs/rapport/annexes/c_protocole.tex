@@ -1,0 +1,64 @@
+\chapter{Protocole d'échange}
+\label{ann:protocole}
+
+\section{Routes REST}
+
+\begin{table}[H]
+\centering
+\caption{Ensemble des routes de l'\ac{API} \ac{REST}.}
+\label{tab:restcomplet}
+\scriptsize
+\begin{tabularx}{\textwidth}{@{}l l X@{}}
+\toprule
+\textbf{Méthode} & \textbf{Route} & \textbf{Description} \\
+\midrule
+GET & \code{/api/health} & Contrôle de santé du service (public) \\
+POST & \code{/api/auth/login} & Connexion~: retourne \code{token} et \code{user} \\
+POST & \code{/api/auth/register} & Inscription patient (HTTP 201) \\
+POST & \code{/api/auth/logout} & Révoque le jeton courant \\
+GET & \code{/api/auth/me} & Utilisateur de la session \\
+GET & \code{/api/rtc-config} & Serveurs \ac{ICE} (\ac{STUN}, \ac{TURN} éventuel) \\
+GET & \code{/api/patients} & Liste des patients avec alertes ouvertes, consentement, dernière mesure \\
+GET & \code{/api/patients/\{id\}} & Dossier d'un patient et dernier consentement \\
+GET & \code{/api/patients/\{id\}/vitals} & Trente dernières mesures \\
+POST & \code{/api/patients/\{id\}/vitals} & Enregistre une mesure, retourne l'alerte éventuelle \\
+POST & \code{/api/patients/\{id\}/consents} & Enregistre un accord ou un refus \\
+GET & \code{/api/alerts} & Vingt dernières alertes (médecin) \\
+PATCH & \code{/api/alerts/\{id\}/acknowledge} & Passe l'alerte à \code{acknowledged} \\
+GET & \code{/api/dashboard?patient\_id=} & Patient, dernière mesure, alertes ouvertes, consentement \\
+POST & \code{/api/consultations} & Démarre une consultation (409 sans consentement) \\
+GET & \code{/api/consultations/active} & Consultation ouverte de l'utilisateur \\
+POST & \code{/api/consultations/\{room\}/end} & Termine la consultation \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Messages WebSocket}
+
+\begin{table}[H]
+\centering
+\caption{Messages des canaux \code{/ws/events} et \code{/ws/signaling/\{room\}}.}
+\label{tab:wsmessages}
+\scriptsize
+\begin{tabularx}{\textwidth}{@{}l l X@{}}
+\toprule
+\textbf{Type} & \textbf{Canal, destinataire} & \textbf{Contenu} \\
+\midrule
+\code{auth} & Les deux, vers le serveur & Premier message obligatoire, avec le jeton de session \\
+\code{auth-ok}, \code{auth-failed} & Les deux & Résultat de l'authentification \\
+\code{alert} & Événements, médecin & Alerte créée (patient, gravité, message) \\
+\code{vital} & Événements, médecin & Nouvelle mesure sans alerte \\
+\code{consent} & Événements, médecin & Consentement donné ou retiré (\code{accepted}) \\
+\code{patient-registered} & Événements, médecin & Identifiant du nouveau patient \\
+\code{invitation} & Événements, patient & Consultation (salle, médecin, patient) \\
+\code{consultation-ended} & Événements, patient & Salle terminée \\
+\code{forbidden}, \code{room-full} & Signalisation & Utilisateur étranger à la consultation, salle pleine \\
+\code{offer}, \code{answer}, candidats \ac{ICE} & Signalisation & Messages WebRTC relayés tels quels à l'autre participant \\
+\code{leave} & Signalisation & Envoyé à l'autre participant quand l'un quitte la salle \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Codes d'erreur HTTP}
+
+401 (pas de session valide), 403 (rôle insuffisant ou dossier d'un autre patient), 404 (élément introuvable), 409 (consentement absent, identifiant déjà utilisé, plafond de comptes), 422 (valeur impossible ou formulaire invalide), 429 (trop de tentatives) et 308 (redirection vers HTTPS lorsque l'imposition est active).

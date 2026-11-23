@@ -1,0 +1,43 @@
+% ============================================================================
+% Chapitre 1 : État de l'art (volontairement court)
+% ============================================================================
+\chapter{État de l'art}
+\label{chap:etat}
+
+\introchap
+
+Ce chapitre rassemble, de façon volontairement brève, les notions sur lesquelles repose le projet~: la télémédecine telle que l'\ac{OMS} la définit, la technologie WebRTC pour la vidéo, le suivi à distance par seuils, et le cadre légal marocain. Il ne cherche pas l'exhaustivité~; il fixe le vocabulaire et justifie les choix des chapitres suivants.
+
+\section{La télémédecine selon l'OMS}
+
+L'\ac{OMS} a adopté une description large de la télémédecine~: la prestation de soins de santé, lorsque la distance est un facteur critique, par des professionnels de santé qui utilisent les technologies de l'information et de la communication pour échanger des informations utiles au diagnostic, au traitement et à la prévention, à la recherche et à l'évaluation, et à la formation continue~\cite{oms2010}. Le rapport précise quatre éléments communs à toute télémédecine~: elle vise à fournir un soutien clinique, elle cherche à surmonter les barrières géographiques, elle utilise différentes technologies de l'information et de la communication, et son but est d'améliorer les résultats de santé.
+
+L'enquête mondiale de 2009 sur laquelle s'appuie le rapport a recueilli les réponses de 114 pays, soit 59~\% des États membres. Elle montre que la téléradiologie est le domaine le plus établi (33~\%), qu'environ 30~\% des pays ont une agence nationale de télémédecine, et que seuls 20~\% déclarent une évaluation publiée depuis 2006. Le coût perçu est l'obstacle le plus cité, tandis que les pays développés évoquent davantage les questions juridiques de vie privée et de confidentialité. Deux enseignements guident notre travail~: \textbf{évaluer} le système avec des mesures chiffrées, et \textbf{traiter explicitement la confidentialité}.
+
+\section{Téléconsultation vidéo et WebRTC}
+
+WebRTC est un ensemble de standards qui permet à deux navigateurs d'échanger de l'audio et de la vidéo directement, sans module externe~\cite{w3cwebrtc,rfc8825}. Le principe est de séparer trois fonctions~:
+
+\begin{itemize}
+  \item la \textbf{signalisation}, que l'application doit fournir elle-même (ici un canal \ac{WS}~\cite{rfc6455}) pour échanger les descriptions de session (\ac{SDP}) et les candidats de connexion~;
+  \item la \textbf{traversée des réseaux}, par l'algorithme \ac{ICE}~\cite{rfc8445}, qui s'appuie sur un serveur \ac{STUN}~\cite{rfc8489} pour découvrir l'adresse publique de chaque navigateur et, si aucun chemin direct n'existe, sur un relais \ac{TURN}~\cite{rfc8656}~;
+  \item le \textbf{transport sécurisé} des médias, chiffrés par \ac{DTLS} et \ac{SRTP}~\cite{rfc5764}.
+\end{itemize}
+
+L'avantage pour la télémédecine est double~: le flux vidéo ne transite pas par le serveur de l'application, qui ne peut donc ni le voir ni le stocker, et la charge serveur reste faible.
+
+\section{Suivi à distance et alertes sur seuils}
+
+Le suivi à distance consiste à faire mesurer des constantes (tension artérielle, fréquence cardiaque, \ac{SpO2}, température) au domicile du patient et à les transmettre au médecin. Pour ne pas submerger le médecin, un système d'alerte compare chaque mesure à des seuils et ne le prévient que lorsqu'une valeur sort de la plage acceptable. Les seuils de SahaLink sont des règles simples et explicites, inspirées de références médicales usuelles, qui servent à la démonstration~; ils ne sont pas validés cliniquement, et doivent l'être par un médecin avant tout usage réel.
+
+\section{Cadre légal marocain}
+
+Deux textes encadrent le projet. La loi~131-13 relative à l'exercice de la médecine~\cite{loi13113} consacre sa section~4 à la télémédecine (articles~99 à~102) et exige notamment le consentement exprès, libre et éclairé du patient. La loi~09-08~\cite{loi0908} protège les personnes physiques à l'égard du traitement de leurs données personnelles et range les données de santé parmi les données sensibles. Leur lecture détaillée et leur mise en œuvre font l'objet du chapitre~\ref{chap:securite}.
+
+\section{Positionnement}
+
+Une plateforme certifiée apporte une authentification forte, un hébergement agréé et une architecture multi-établissements. SahaLink, prototype à données fictives, démontre le parcours fonctionnel complet avec une vidéo en pair à pair chiffrée et aucune vidéo stockée, mais sans second facteur, sur un seul serveur et avec SQLite.
+
+\conclchap
+
+La télémédecine, telle que l'\ac{OMS} la décrit, associe un soutien clinique, la levée de la barrière de la distance, des technologies de l'information et un objectif de résultats de santé. WebRTC fournit une vidéo sécurisée sans passer par le serveur, et un système d'alertes sur seuils permet de n'alerter le médecin que lorsque c'est utile. Le cadre légal marocain impose le consentement et la protection des données de santé. Ces éléments fixent le cadre du chapitre suivant, qui précise le contexte de soins et les besoins que SahaLink doit satisfaire.

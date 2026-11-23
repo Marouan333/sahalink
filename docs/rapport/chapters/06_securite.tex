@@ -1,0 +1,148 @@
+% ============================================================================
+% Chapitre 6 : Sécurité, confidentialité et conformité
+% ============================================================================
+\chapter{Sécurité, confidentialité et conformité}
+\label{chap:securite}
+
+\introchap
+
+Les données de santé sont sensibles~: leur divulgation ou leur altération peut nuire gravement au patient. Le cahier des charges exige un traitement effectif de la sécurité, de la confidentialité et de la conformité réglementaire. Ce chapitre identifie les risques, présente les mesures réellement implémentées dans le code, puis les relie aux textes de loi lus dans leur version officielle (loi~09-08, loi~131-13) et aux constats du rapport de l'\ac{OMS}. Il se termine par les limites que nous assumons.
+
+\section{Risques identifiés et mesures}
+
+\begin{table}[H]
+\centering
+\caption{Risques principaux et mesures implémentées.}
+\label{tab:risques}
+\small
+\begin{tabularx}{\textwidth}{@{}X X X@{}}
+\toprule
+\textbf{Risque} & \textbf{Mesure} & \textbf{Où dans le code} \\
+\midrule
+Mot de passe volé dans la base & Hachage \ac{PBKDF2} avec sel, 200\,000 itérations & \code{database.py} \\
+Vol de session via la base & Jeton conservé sous forme d'empreinte \ac{SHA}-256, validité 8~h & \code{auth.py} \\
+Accès au dossier d'un autre patient & Contrôle du rôle et de l'identité sur chaque route (403) & \code{ensure\_patient\_access} \\
+Prise de rôle médecin & Rôle patient imposé à l'inscription & \code{register} \\
+Appel sans accord du patient & Consentement bloquant (409) & \code{start\_consultation} \\
+Devinette de mot de passe & Verrouillage après 8 échecs en 5~min (429) & \code{RateLimiter} \\
+Création de comptes en masse & 10 inscriptions par heure et par adresse, 200 comptes au plus & \code{register\_limiter} \\
+Script malveillant dans un nom saisi (\ac{XSS}) & Validation, échappement, politique de sécurité du contenu & \code{security\_headers} \\
+Injection \ac{SQL} & Requêtes toutes paramétrées & \code{database.py}, \code{main.py} \\
+Écoute du trafic & \ac{HTTPS} imposé, \ac{HSTS}, vidéo chiffrée par \ac{DTLS}-\ac{SRTP} & \code{security\_headers} \\
+Intrusion dans la salle vidéo & Salle liée à un médecin et un patient, 2 participants au plus & \code{signaling\_socket} \\
+Détournement de \ac{WS} depuis un autre site & Contrôle de l'origine, jeton dans le premier message & \code{same\_origin} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Mesures implémentées}
+
+\subsection{Authentification, sessions et rôles}
+
+Les comptes sont authentifiés par identifiant et mot de passe. Le mot de passe est transformé par \ac{PBKDF2}~\cite{rfc8018} avec un sel aléatoire par compte, comparé en temps constant. La session est un jeton aléatoire dont seule l'empreinte est stockée. Les rôles sont contrôlés par le serveur sur chaque route~: le patient n'accède qu'à son propre dossier, seul le médecin consulte les alertes et la liste des patients.
+
+\subsection{Consentement}
+
+Le consentement est une étape visible avant la saisie de constantes. Il indique la finalité, le caractère pédagogique, l'utilisation de données simulées et la possibilité de refuser. Chaque accord ou refus est enregistré avec sa finalité et sa date, seul le patient concerné peut le donner ou le retirer, et le serveur refuse de démarrer une téléconsultation tant que le dernier consentement n'est pas une acceptation.
+
+\subsection{Protection du navigateur et du transport}
+
+Les noms saisis par les patients s'affichent chez le médecin~: ils sont validés par le serveur, échappés avant tout affichage, et une politique de sécurité du contenu (\ac{CSP}) interdit les scripts en ligne, les scripts externes et les connexions vers d'autres hôtes. Des en-têtes complémentaires limitent l'intégration dans un cadre (\code{X-Frame-Options}), le contenu deviné (\code{nosniff}) et les permissions du navigateur. Avec \code{SAHALINK\_FORCE\_HTTPS=1}, toute requête HTTP non locale est redirigée vers HTTPS (code 308), et l'en-tête \ac{HSTS}~\cite{rfc6797} dit au navigateur de refuser ensuite toute connexion non chiffrée à ce site. Le chiffrement \ac{TLS} lui-même est fourni par l'hébergeur ou le tunnel, pas par l'application.
+
+\section{Loi 09-08 sur la protection des données personnelles}
+
+Le texte officiel~\cite{loi0908} a été lu directement, avec les renvois à son décret d'application. Les articles utiles au projet sont repris dans le tableau~\ref{tab:loi0908}.
+
+\begin{table}[H]
+\centering
+\caption{Loi 09-08~: articles lus et mise en œuvre dans SahaLink.}
+\label{tab:loi0908}
+\scriptsize
+\begin{tabularx}{\textwidth}{@{}l X X X@{}}
+\toprule
+\textbf{Art.} & \textbf{Ce que dit la loi} & \textbf{Mise en œuvre} & \textbf{Limite} \\
+\midrule
+1, al.~3 & Les données relatives à la santé sont des données sensibles & Constantes et suivi traités comme sensibles~; données fictives & Aucune donnée réelle \\
+3 & Données traitées loyalement, pour des finalités déterminées, adéquates et non excessives, exactes, conservées pour une durée limitée & Finalité dans chaque consentement, collecte minimale, bornes physiologiques & Pas de durée de conservation \\
+4 & Consentement indubitable de la personne~; communication à un tiers soumise à son accord & Consentement explicite, horodaté~; aucune transmission à un tiers & Pas de consentement signé \\
+5 & Information préalable (responsable, finalités, destinataires, droits) & Texte de consentement avec finalité et caractère simulé & Responsable et droits non affichés \\
+7, 8, 9 & Droits d'accès, de rectification, d'opposition & Historique personnel, retrait du consentement & Pas de rectification ni de suppression de compte \\
+12, 21, 22 & Autorisation préalable de la \ac{CNDP}, ou déclaration pour les soins par un praticien tenu au secret & Sans objet (données fictives) & Formalités requises pour tout usage réel \\
+23 & Mesures techniques et organisationnelles appropriées, notamment en cas de transmission par un réseau & Hachage, rôles, \ac{HTTPS}, \ac{HSTS} & Pas de chiffrement au repos \\
+24 & Huit contrôles pour les données de santé & Voir tableau~\ref{tab:art24} & Journal d'audit partiel \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+L'article~24 est le plus directement lié à la sécurité des données de santé. Il demande aux responsables de traitement de prendre des mesures pour huit contrôles.
+
+\begin{table}[H]
+\centering
+\caption{Article 24 de la loi 09-08~: contrôles et mesures.}
+\label{tab:art24}
+\small
+\begin{tabularx}{\textwidth}{@{}l X@{}}
+\toprule
+\textbf{Contrôle} & \textbf{Mesure dans SahaLink} \\
+\midrule
+Entrée, supports de données & Relève de l'hébergeur, hors périmètre du prototype \\
+Insertion & Seuls le patient (pour son dossier) ou le médecin ajoutent une constante~; valeurs validées côté serveur \\
+Utilisation du système & Toute route exige une session authentifiée \\
+Accès & Rôles contrôlés sur chaque route~; un patient ne voit que son dossier (403 sinon) \\
+Transmission & \ac{WS} authentifiés avec contrôle d'origine~; salle réservée aux deux participants \\
+Vérification a posteriori (quoi, quand, pour qui) & Données horodatées et rattachées au patient~; pas de journal d'audit complet des lectures \\
+Transport & \ac{HTTPS} imposé, \ac{HSTS}~; média chiffré par \ac{DTLS}-\ac{SRTP}. Testé (V20) \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Loi 131-13 : la télémédecine}
+
+La section~4 de la loi~131-13~\cite{loi13113}, \enquote{De la télémédecine}, tient en quatre articles (99 à 102), lus dans le Bulletin officiel n\textsuperscript{o}~6344.
+
+\begin{table}[H]
+\centering
+\caption{Loi 131-13~: articles 99 à 102 et mise en œuvre.}
+\label{tab:loi13113}
+\scriptsize
+\begin{tabularx}{\textwidth}{@{}l X X X@{}}
+\toprule
+\textbf{Art.} & \textbf{Ce que dit la loi} & \textbf{Mise en œuvre} & \textbf{Limite} \\
+\midrule
+99 & Recours à la télémédecine dans le respect de la protection des données et de la confidentialité du dossier médical, notamment pour la surveillance de l'état des patients & Suivi à distance avec alertes et téléconsultation~; authentification, accès par rôle, salle réservée & Chiffrement au repos à prévoir \\
+100 & Les actes de télémédecine et l'identité des médecins sont consignés dans le dossier médical & Table \code{consultations} (médecin, patient, début, fin), données horodatées & Qualifications du médecin non modélisées \\
+101 & Pas d'acte sans consentement exprès, libre et éclairé, y compris par voie électronique, avec droit de refus~; tuteur pour un mineur & Consentement électronique horodaté~; démarrage refusé sans accord (409) & Pas de tuteur légal ni de consentement signé \\
+102 & Conditions techniques fixées par voie réglementaire & Renvoie à un texte que le prototype ne traite pas & À vérifier avant tout déploiement \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Constats du rapport de l'OMS exploités}
+
+Le rapport~\cite{oms2010} a été lu en entier. Six constats guident le projet~:
+
+\begin{itemize}
+  \item la \textbf{définition} en quatre éléments (soutien clinique, dépassement de la distance, technologies de l'information, amélioration des résultats) correspond aux alertes sur seuils, à la vidéo et à la détection plus rapide entre deux visites~;
+  \item l'enquête a recueilli 114 pays (59~\%)~; la téléradiologie est le domaine le plus établi (33~\%) et environ 30~\% des pays ont une agence nationale~: l'usage téléconsultation avec suivi reste peu documenté~;
+  \item seuls 20~\% des pays déclarent une évaluation publiée~: d'où l'\textbf{évaluation chiffrée} du chapitre~\ref{chap:validation}~;
+  \item le coût perçu est l'obstacle le plus cité, et les pays développés citent davantage la \textbf{vie privée et la confidentialité}~: d'où une pile légère et un traitement explicite de la confidentialité~;
+  \item parmi les obstacles juridiques figurent le manque de règles sur le transfert, le stockage et le partage des données, l'authentification des professionnels et la responsabilité~: transfert protégé, accès par rôle et consentement bloquant répondent aux premiers, le statut du médecin n'est pas vérifié (limite)~;
+  \item la télémédecine doit \textbf{renforcer} les autres services de santé, non les concurrencer~: SahaLink complète les visites physiques.
+\end{itemize}
+
+\section{Limites connues}
+
+SahaLink n'est ni un dispositif médical ni une plateforme prête à recevoir des données réelles. Avant tout usage réel, il faudrait au minimum~:
+
+\begin{itemize}
+  \item une authentification multifacteur, un verrouillage partagé entre serveurs (celui du prototype est en mémoire d'un seul serveur) et un journal d'audit inviolable des accès~;
+  \item un jeton de session en cookie \code{HttpOnly} plutôt que dans le stockage de l'onglet, choisi ici pour pouvoir démontrer le médecin et le patient dans un même navigateur~;
+  \item des comptes réels gérés par l'établissement, avec vérification du statut de médecin, à la place des comptes de démonstration (mot de passe public) et de l'inscription libre~;
+  \item le chiffrement des données au repos, la rotation des secrets, les sauvegardes et un hébergement agréé~;
+  \item les formalités auprès de la \ac{CNDP}, une analyse d'impact, des politiques de conservation et l'exercice effectif des droits des personnes~;
+  \item une validation clinique des seuils et une gouvernance médicale.
+\end{itemize}
+
+\conclchap
+
+La sécurité de SahaLink n'est pas une promesse~: chaque mesure est implémentée, testée, et reliée à un article de loi lu dans son texte officiel. Les articles~4 et~24 de la loi~09-08 et l'article~101 de la loi~131-13 justifient respectivement le consentement bloquant, les contrôles d'accès, de transmission et de transport, et le refus de démarrer sans accord. Les limites sont explicites, notamment l'absence de chiffrement au repos, de second facteur et de formalités auprès de la \ac{CNDP}. Le chapitre suivant replace ces mesures dans l'organisation des acteurs et du travail de l'équipe.

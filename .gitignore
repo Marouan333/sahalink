@@ -10,3 +10,15 @@ server.err.log
 .server.pid
 .playwright-mcp/
 
+
+# LaTeX build artifacts
+docs/rapport/*.aux
+docs/rapport/*.log
+docs/rapport/*.toc
+docs/rapport/*.lof
+docs/rapport/*.lot
+docs/rapport/*.out
+docs/rapport/*.bbl
+docs/rapport/*.blg
+docs/rapport/*.synctex.gz
+.coverage

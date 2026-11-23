@@ -1,0 +1,220 @@
+% ============================================================================
+% Chapitre 3 : Conception
+% ============================================================================
+\chapter{Conception de la plateforme}
+\label{chap:conception}
+
+\introchap
+
+La conception transforme les besoins du chapitre précédent en une architecture, un modèle de données, un parcours et des protocoles d'échange. Ce chapitre présente successivement l'architecture générale, le modèle de données, le parcours patient-médecin modélisé en diagramme à couloirs, les protocoles (\ac{REST}, \ac{WS} et signalisation WebRTC), la matrice des droits par rôle, puis les principaux choix de conception et leur justification.
+
+\section{Architecture générale}
+
+Le système est découpé en trois couches (figure~\ref{fig:architecture})~: les \textbf{navigateurs} du patient et du médecin, le \textbf{serveur} FastAPI qui valide, enregistre et notifie, et la \textbf{base SQLite}. La vidéo n'est pas une quatrième couche~: elle circule directement entre les deux navigateurs.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  box/.style={draw=ensambleu, fill=ensambleu!6, rounded corners=3pt, minimum width=3.4cm, minimum height=1cm, align=center, font=\small},
+  db/.style={draw=ensamrouge, fill=ensamrouge!6, rounded corners=3pt, minimum width=3.4cm, minimum height=1cm, align=center, font=\small},
+  grp/.style={draw=gray!60, dashed, rounded corners=6pt, inner sep=8pt},
+  arr/.style={-{Stealth[length=2.5mm]}, thick, ensambleu},
+  lbl/.style={font=\scriptsize, fill=white, inner sep=1.5pt}
+]
+\node[box] (pat) {\textbf{Patient}\\ navigateur};
+\node[box, below=1.3cm of pat] (doc) {\textbf{Médecin}\\ navigateur};
+\node[grp, fit=(pat)(doc), label={[font=\small\bfseries]above:Navigateurs}] (nav) {};
+
+\node[box, right=4.3cm of pat] (api) {\textbf{API REST}\\ \scriptsize constantes, consentements,\\ \scriptsize alertes, consultations};
+\node[box, below=0.5cm of api] (ev) {\textbf{WebSocket /ws/events}\\ \scriptsize alertes, invitations};
+\node[box, below=0.5cm of ev] (sig) {\textbf{WebSocket /ws/signaling}\\ \scriptsize relais \ac{SDP} et \ac{ICE}};
+\node[grp, fit=(api)(ev)(sig), label={[font=\small\bfseries]above:Serveur FastAPI}] (srv) {};
+
+\node[db, below=0.9cm of srv] (db) {\textbf{Base SQLite}\\ \scriptsize 7 tables};
+\node[box, below=0.9cm of nav] (stun) {\textbf{\ac{STUN} / \ac{TURN}}\\ \scriptsize chemin réseau};
+
+\draw[arr] (nav.east |- api) -- node[lbl, above]{REST + jeton} (api.west);
+\draw[arr] (ev.west) -- node[lbl, above]{alertes, invitations} (nav.east |- ev);
+\draw[arr, <->] (sig.west) -- node[lbl, above]{\ac{SDP}, \ac{ICE}} (nav.east |- sig);
+\draw[arr] (srv.south) -- node[lbl, right]{SQL} (db.north);
+\draw[arr, <->, ensamrouge, very thick] (pat.south) -- node[lbl, right]{vidéo et audio, \ac{DTLS}-\ac{SRTP}, pair à pair} (doc.north);
+\draw[arr, dashed, gray] (stun.north) -- node[lbl, right]{candidats \ac{ICE}} (nav.south);
+\end{tikzpicture}
+\caption{Architecture de SahaLink.}
+\label{fig:architecture}
+\end{figure}
+
+Le choix structurant est que \textbf{le serveur ne voit jamais l'image}. Il authentifie les deux participants, crée la consultation et relaie les messages de négociation, puis la vidéo s'établit directement entre les navigateurs. Le serveur ne stocke donc aucune vidéo, ce qui réduit à la fois la charge et l'exposition des données.
+
+\section{Modèle de données}
+
+La base compte sept tables (figure~\ref{fig:er}). Le \textbf{dernier consentement} d'un patient fait foi~: la téléconsultation ne peut démarrer que si cet enregistrement est une acceptation.
+
+\begin{figure}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+  ent/.style={draw=ensambleu, fill=ensambleu!5, rounded corners=2pt, align=left, font=\scriptsize, inner sep=4pt, minimum width=3.6cm},
+  rel/.style={thick, ensambleu},
+  lbl/.style={font=\tiny, fill=white, inner sep=1pt}
+]
+\node[ent] (consents) at (0,0) {\textbf{consents}\\ id (PK)\\ patient\_id (FK)\\ accepted\\ purpose\\ created\_at};
+\node[ent] (patients) at (5.4,0) {\textbf{patients}\\ id (PK)\\ full\_name\\ birth\_year\\ care\_plan};
+\node[ent] (vitals) at (10.8,0) {\textbf{vitals}\\ id (PK)\\ patient\_id (FK)\\ systolic, diastolic\\ heart\_rate, spo2\\ temperature\\ source, recorded\_at};
+\node[ent] (users) at (0,-3.6) {\textbf{users}\\ id (PK)\\ username (unique)\\ display\_name\\ role\\ patient\_id (FK)\\ password\_salt, password\_hash};
+\node[ent] (consult) at (5.4,-3.6) {\textbf{consultations}\\ id (PK)\\ room (unique)\\ doctor\_id (FK)\\ patient\_id (FK)\\ status\\ created\_at, ended\_at};
+\node[ent] (alerts) at (10.8,-3.6) {\textbf{alerts}\\ id (PK)\\ patient\_id (FK)\\ vital\_id (FK)\\ severity, message\\ status, created\_at};
+\node[ent] (sessions) at (0,-7.1) {\textbf{sessions}\\ token\_hash (PK)\\ user\_id (FK)\\ expires\_at};
+
+\draw[rel] (patients) -- node[lbl, above]{1} (consents) node[lbl, above, pos=0.15]{N};
+\draw[rel] (patients) -- node[lbl, above]{1} (vitals) node[lbl, above, pos=0.85]{N};
+\draw[rel] (patients.south) -- node[lbl, right, pos=0.2]{1} node[lbl, right, pos=0.8]{N} (consult.north);
+\draw[rel] (vitals.south) -- node[lbl, right, pos=0.2]{1} node[lbl, right, pos=0.8]{0..1} (alerts.north);
+\draw[rel] (users.north east) -- node[lbl, above, pos=0.5]{0..1} (patients.south west);
+\draw[rel] (users) -- node[lbl, above]{1} (consult) node[lbl, above, pos=0.85]{N};
+\draw[rel] (users.south) -- node[lbl, right, pos=0.2]{1} node[lbl, right, pos=0.8]{N} (sessions.north);
+\end{tikzpicture}}
+\caption{Modèle entité-association (la table \code{alerts} référence aussi \code{patients} par \code{patient\_id}).}
+\label{fig:er}
+\end{figure}
+
+Les sessions (\code{sessions}) ne conservent que l'empreinte du jeton et son expiration (8~h)~; les alertes (\code{alerts}) portent une gravité (\code{warning} ou \code{critical}) et un statut (\code{open} ou \code{acknowledged}).
+
+\section{Parcours patient-médecin}
+
+La figure~\ref{fig:bpmn} modélise le processus de bout en bout, avec un couloir par acteur, dans l'esprit de la notation BPMN. Elle couvre le parcours nominal et les cas dégradés, signalés en rouge.
+
+\begin{figure}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+  task/.style={draw=ensambleu, fill=white, rounded corners=3pt, minimum width=2.3cm, minimum height=1.3cm, align=center, font=\scriptsize, text width=2.15cm},
+  lane/.style={draw=gray!50, fill=ensambleu!3},
+  lname/.style={font=\footnotesize\bfseries, rotate=90, text=ensambleu},
+  arr/.style={-{Stealth[length=2mm]}, thick, ensambleu},
+  bad/.style={font=\scriptsize, text=ensamrouge, align=center}
+]
+\fill[lane] (-1.7,1.1) rectangle (18.4,-1.3);
+\fill[lane, fill=ensamrouge!3] (-1.7,-1.3) rectangle (18.4,-3.9);
+\fill[lane] (-1.7,-3.9) rectangle (18.4,-6.5);
+\draw[gray!50] (-1.7,1.1) rectangle (18.4,-6.5);
+\draw[gray!50] (-1.7,-1.3) -- (18.4,-1.3);
+\draw[gray!50] (-1.7,-3.9) -- (18.4,-3.9);
+\node[lname] at (-1.35,-0.1) {Patient};
+\node[lname] at (-1.35,-2.6) {Système};
+\node[lname] at (-1.35,-5.2) {Médecin};
+
+\node[task] (p1) at (0,-0.1) {Créer un compte ou se connecter};
+\node[task] (p2) at (2.8,-0.1) {Lire et accepter le consentement};
+\node[task] (s1) at (2.8,-2.6) {Enregistrer le consentement};
+\node[task] (p3) at (5.6,-0.1) {Saisir et envoyer une constante};
+\node[task] (s2) at (8.4,-2.6) {Valider, enregistrer, comparer aux seuils, alerter};
+\node[task] (d1) at (11.2,-5.2) {Recevoir l'alerte, consulter l'historique};
+\node[task] (d2) at (14.0,-5.2) {Démarrer la consultation};
+\node[task] (s5) at (14.0,-2.6) {Vérifier le consentement, créer la salle, inviter};
+\node[task] (p5) at (14.0,-0.1) {Rejoindre la consultation vidéo};
+\node[task] (d3) at (16.8,-5.2) {Terminer la consultation};
+
+\draw[arr] (p1) -- (p2);
+\draw[arr] (p2) -- (s1);
+\draw[arr] (s1.east) -| (p3.south);
+\draw[arr] (p3.east) -| (s2.north);
+\draw[arr] (s2.east) -| (d1.north);
+\draw[arr] (d1) -- (d2);
+\draw[arr] (d2) -- (s5);
+\draw[arr] (s5) -- (p5);
+\draw[arr] (p5.east) -| (d3.north);
+
+\node[bad] at (8.4,-3.6) {HTTP 422 si valeur impossible};
+\node[bad, text width=2.2cm] at (15.7,-3.6) {HTTP 409 si accord absent ou retiré};
+\node[bad] at (11.2,-6.2) {ou acquitter l'alerte, sans appel};
+\end{tikzpicture}}
+\caption{Parcours patient-médecin à trois couloirs, cas dégradés en rouge.}
+\label{fig:bpmn}
+\end{figure}
+
+\section{Protocoles d'échange}
+
+\subsection{Interface REST}
+
+L'\ac{API} \ac{REST} regroupe quatre familles de routes~: les \textbf{comptes} (connexion, inscription, déconnexion), les \textbf{constantes et le consentement} d'un patient, les \textbf{alertes} (lecture et acquittement, réservés au médecin) et les \textbf{consultations} (démarrage, consultation active, fin). Le médecin dispose en plus de la liste des patients et du tableau de bord d'un patient. La liste complète des routes figure en annexe~\ref{ann:protocole}.
+
+\subsection{Événements WebSocket}
+
+Le canal \code{/ws/events} pousse des événements JSON vers les navigateurs authentifiés. Le médecin reçoit \code{alert}, \code{vital}, \code{consent} et \code{patient-registered}~; le patient reçoit \code{invitation} et \code{consultation-ended}. Un patient ne reçoit jamais les alertes du médecin.
+
+\subsection{Signalisation WebRTC}
+
+Le canal \code{/ws/signaling/\{room\}} ne fait que relayer les messages entre les deux participants. Après l'authentification (jeton dans le premier message), le serveur vérifie que l'utilisateur est bien le médecin ou le patient de la consultation ouverte, puis accepte au plus deux participants par salle. La figure~\ref{fig:sequence} montre l'enchaînement.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  life/.style={dashed, gray},
+  actor/.style={draw=ensambleu, fill=ensambleu!8, rounded corners=2pt, minimum width=3cm, font=\small\bfseries, align=center},
+  msg/.style={-{Stealth[length=2mm]}, thick, ensambleu},
+  lbl/.style={font=\scriptsize, fill=white, inner sep=1pt}
+]
+\node[actor] (d) at (0,0) {Médecin\\ \scriptsize navigateur};
+\node[actor] (s) at (5.5,0) {Serveur\\ \scriptsize signalisation};
+\node[actor] (p) at (11,0) {Patient\\ \scriptsize navigateur};
+\draw[life] (d.south) -- (0,-7.6);
+\draw[life] (s.south) -- (5.5,-7.6);
+\draw[life] (p.south) -- (11,-7.6);
+
+\draw[msg] (0,-1.2) -- node[lbl, above]{auth (jeton)} (5.5,-1.2);
+\draw[msg] (5.5,-1.7) -- node[lbl, above]{auth-ok} (0,-1.7);
+\draw[msg] (11,-2.2) -- node[lbl, above]{auth (jeton)} (5.5,-2.2);
+\draw[msg] (5.5,-2.7) -- node[lbl, above]{auth-ok} (11,-2.7);
+\draw[msg] (0,-3.4) -- node[lbl, above]{offre (\ac{SDP})} (5.5,-3.4);
+\draw[msg] (5.5,-3.6) -- node[lbl, above]{relais} (11,-3.6);
+\draw[msg] (11,-4.3) -- node[lbl, above]{réponse (\ac{SDP})} (5.5,-4.3);
+\draw[msg] (5.5,-4.5) -- node[lbl, above]{relais} (0,-4.5);
+\draw[msg, <->] (0,-5.2) -- node[lbl, above]{candidats \ac{ICE}} (5.5,-5.2);
+\draw[msg, <->] (5.5,-5.4) -- node[lbl, above]{candidats \ac{ICE}} (11,-5.4);
+\draw[msg, <->, ensamrouge, very thick] (0,-6.6) -- node[lbl, above]{média direct, chiffré \ac{DTLS}-\ac{SRTP}} (11,-6.6);
+\end{tikzpicture}
+\caption{Établissement de la vidéo~: le serveur ne relaie que la négociation.}
+\label{fig:sequence}
+\end{figure}
+
+\section{Droits par rôle}
+
+\begin{table}[H]
+\centering
+\caption{Droits par rôle (appliqués par le serveur sur chaque route).}
+\label{tab:droits}
+\begin{tabular}{@{}p{5.4cm} >{\centering\arraybackslash}p{4.7cm} >{\centering\arraybackslash}p{4.7cm}@{}}
+\toprule
+\textbf{Action} & \textbf{Médecin} & \textbf{Patient} \\
+\midrule
+Se connecter, consulter sa session & oui & oui \\
+Créer un compte & non & oui (rôle imposé) \\
+Lire les constantes d'un dossier & oui & uniquement le sien \\
+Envoyer une constante & oui & uniquement pour lui \\
+Donner ou retirer le consentement & non (403) & uniquement pour lui \\
+Lister les patients, lire alertes et tableau de bord & oui & non (403) \\
+Acquitter une alerte & oui & non (403) \\
+Démarrer une téléconsultation & oui, si consentement (sinon 409) & non (403) \\
+Rejoindre la salle vidéo & si c'est sa consultation & si c'est sa consultation \\
+Terminer la consultation & oui & non (il peut quitter et revenir) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Choix de conception et justification}
+
+\begin{itemize}
+  \item \textbf{WebRTC en pair à pair}~: norme imposée par le sujet~; le flux ne passe pas par le serveur, qui ne stocke aucune vidéo.
+  \item \textbf{\ac{REST} pour les données, \ac{WS} pour le temps réel}~: une alerte ou une invitation doit arriver sans interrogation périodique.
+  \item \textbf{Authentification dans le premier message \ac{WS}}~: le jeton n'apparaît jamais dans l'adresse, donc ni dans les journaux ni dans l'historique du navigateur~; l'origine de la page est vérifiée contre le détournement de WebSocket.
+  \item \textbf{Code de salle aléatoire lié à un médecin et un patient}~: une salle ne peut être ni devinée ni rejointe par un tiers.
+  \item \textbf{Pairs \enquote{polis}}~: si les deux navigateurs envoient une offre en même temps, l'un cède, ce qui évite les appels bloqués.
+  \item \textbf{Choix de la caméra}~: les caméras virtuelles de téléphone sont classées en dernier et chaque caméra est testée sur une image réelle avant usage.
+  \item \textbf{SQLite}~: aucune installation, démonstration reproductible~; l'accès passe par une seule fonction de connexion, ce qui faciliterait une migration vers PostgreSQL.
+  \item \textbf{Seuils simples et explicites}, et \textbf{validation Pydantic} avant toute écriture en base.
+\end{itemize}
+
+\conclchap
+
+L'architecture sépare nettement les rôles~: le navigateur présente, le serveur valide, enregistre et notifie, la base conserve, et la vidéo circule directement entre les pairs. Le modèle de données de sept tables, le parcours à trois couloirs et les protocoles forment le contrat sur lequel s'appuie la réalisation décrite au chapitre suivant.

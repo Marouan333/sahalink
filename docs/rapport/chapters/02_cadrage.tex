@@ -1,0 +1,142 @@
+% ============================================================================
+% Chapitre 2 : Cadrage et spécifications
+% ============================================================================
+\chapter{Cadrage et spécifications}
+\label{chap:cadrage}
+
+\introchap
+
+Un prototype n'a de sens que s'il répond à un problème de soins précis. Ce chapitre situe SahaLink dans son contexte (établissement, service, acteurs, problème traité), formalise les besoins qu'il doit satisfaire, en fixe le périmètre, puis en déduit les spécifications fonctionnelles et techniques et les règles d'alerte retenues.
+
+\section{Contexte de soins}
+
+L'\textbf{établissement cible} est le service de cardiologie ou de médecine générale d'un centre de santé marocain qui suit des patients chroniques, notamment des patients hypertendus. Le \textbf{problème réel traité} est le suivant~: entre deux visites physiques, une dérive d'une constante physiologique (tension, \ac{SpO2}, fréquence cardiaque, température) peut passer inaperçue. Le patient n'a pas de moyen simple de signaler une mesure anormale, et le médecin n'a pas de visibilité continue. SahaLink raccourcit ce délai de détection et ouvre un canal de téléconsultation immédiat en cas d'alerte.
+
+\section{Acteurs}
+
+\begin{table}[H]
+\centering
+\caption{Acteurs du système.}
+\label{tab:acteurs}
+\begin{tabularx}{\textwidth}{@{}l l X@{}}
+\toprule
+\textbf{Acteur} & \textbf{Persona fictif} & \textbf{Rôle dans le parcours} \\
+\midrule
+Patient & Amal El Idrissi, 54 ans, hypertension & Donne ou refuse son consentement, saisit ses constantes, rejoint la consultation sur invitation \\
+Médecin & Dr.~Benali & Suit ses patients, reçoit les alertes, les acquitte, démarre la consultation vidéo \\
+Plateforme & SahaLink & Valide, enregistre, compare aux seuils, notifie, relaie la signalisation vidéo \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Deux comptes de démonstration sont créés au premier démarrage (\code{dr.benali} et \code{amal}). Tout visiteur peut en outre créer son propre compte patient fictif~: le rôle est alors toujours \enquote{patient}, imposé par le serveur, et il n'existe qu'un seul compte médecin de démonstration.
+
+\section{Besoins formalisés}
+
+\begin{table}[H]
+\centering
+\caption{Besoins, réalisation dans SahaLink et vérification.}
+\label{tab:besoins}
+\small
+\begin{tabularx}{\textwidth}{@{}l X X X@{}}
+\toprule
+\textbf{ID} & \textbf{Besoin} & \textbf{Réalisation} & \textbf{Vérification} \\
+\midrule
+B1 & S'identifier de façon sûre et ne voir que ce qui me concerne & Connexion, sessions, rôles & Tests de session et de droits \\
+B2 & Donner ou refuser mon consentement & Consentement horodaté, démarrage bloqué sans accord & Test du refus HTTP~409 \\
+B3 & Transmettre mes constantes depuis chez moi & Formulaire de saisie, historique personnel & Test de mesure normale \\
+B4 & Être prévenu d'une constante anormale & Seuils, alerte en temps réel, acquittement & Tests d'alerte \\
+B5 & Rejeter les valeurs impossibles & Bornes physiologiques côté serveur & Test HTTP~422 \\
+B6 & Joindre rapidement le patient en vidéo & Invitation temps réel, code de salle aléatoire & Tests d'invitation \\
+B7 & Rejoindre sans code technique & Bannière d'invitation, bouton \enquote{Rejoindre} & Test d'invitation \\
+B8 & Que personne d'autre n'entre dans la consultation & Salle liée à un médecin et un patient, 2 participants au plus & Tests de signalisation \\
+B9 & Retrouver une trace de l'acte & Table des consultations, données horodatées & Voir art.~100 (chapitre~\ref{chap:securite}) \\
+B10 & Comprendre pourquoi la vidéo ne s'affiche pas & Choix de caméra, détection d'image noire & Test manuel \\
+B11 & Créer mon propre compte patient & Inscription validée, rôle imposé, limitation de débit & Tests d'inscription \\
+B12 & Suivre plusieurs patients et voir leur évolution & Liste des patients, quatre graphiques avec seuils & Tests de liste et de tableau de bord \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Périmètre}
+
+\begin{table}[H]
+\centering
+\caption{Périmètre du projet.}
+\label{tab:perimetre}
+\begin{tabularx}{\textwidth}{@{}X X@{}}
+\toprule
+\textbf{Inclus} & \textbf{Exclu} \\
+\midrule
+Consentement, saisie et historique de constantes, alertes sur seuils en temps réel & Dispositifs de mesure connectés réels \\
+Consultation vidéo WebRTC en pair à pair, invitation du patient & Enregistrement vidéo, partage d'écran, messagerie \\
+Authentification, rôles, inscription patient & Vérification du statut de médecin, second facteur \\
+Tableau de bord du médecin multi-patients avec graphiques & Gestion d'équipes soignantes, affectation d'un patient à un médecin \\
+Données fictives et simulées documentées & Données de patients réels, hébergement agréé \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Spécifications fonctionnelles}
+
+Le système doit permettre de créer un compte patient ou de se connecter avec un rôle~; de recueillir un consentement explicite (accepté ou refusé, avec finalité et date)~; d'enregistrer des constantes validées et de les afficher en tableau et en graphiques~; de comparer chaque mesure aux seuils et de transmettre l'alerte en temps réel au seul médecin~; de permettre au médecin d'acquitter l'alerte et de démarrer une consultation vidéo, refusée si le consentement manque~; et de permettre au patient de rejoindre puis de quitter la consultation, que le médecin termine.
+
+\section{Spécifications techniques}
+
+\subsection{Technologies retenues}
+
+\begin{table}[H]
+\centering
+\caption{Choix technologiques.}
+\label{tab:techno}
+\begin{tabularx}{\textwidth}{@{}l l X@{}}
+\toprule
+\textbf{Couche} & \textbf{Technologie} & \textbf{Justification} \\
+\midrule
+Serveur & Python, FastAPI~\cite{fastapi}, Uvicorn & Routes \ac{REST} et \ac{WS} dans un seul outil, documentation automatique \\
+Validation & Pydantic~\cite{pydantic} & Règles déclaratives, refus automatique (HTTP~422) \\
+Base de données & SQLite~\cite{sqlite} & Aucune installation, démonstration reproductible \\
+Temps réel & \ac{WS}~\cite{rfc6455} & Alertes et invitations sans interrogation périodique \\
+Vidéo & WebRTC~\cite{w3cwebrtc} & Norme imposée, pair à pair, chiffrée \\
+Interface & HTML, CSS, JavaScript & Aucune dépendance, graphiques en SVG intégré \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Seules deux dépendances sont déclarées dans \code{requirements.txt} (FastAPI et Uvicorn)~: tout le reste provient de la bibliothèque standard de Python. Ce choix de sobriété rend l'installation immédiate et le code facile à expliquer.
+
+\subsection{Règles d'alerte}
+
+Les seuils, appliqués par le serveur à chaque mesure, sont des règles simples et déterministes.
+
+\begin{table}[H]
+\centering
+\caption{Seuils d'alerte et bornes de validation.}
+\label{tab:seuils}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+\textbf{Mesure} & \textbf{Alerte si} & \textbf{Gravité} & \textbf{Bornes acceptées} \\
+\midrule
+Tension & systolique $\geq 180$ ou diastolique $\geq 120$ mmHg & Critique & 70 à 250 / 40 à 160 \\
+\ac{SpO2} & $< 90$~\% & Critique & 70 à 100~\% \\
+Fréquence cardiaque & $< 45$ ou $> 130$ bpm & À surveiller & 30 à 220 bpm \\
+Température & $\geq 39{,}0$~\textdegree C & À surveiller & 32 à 43~\textdegree C \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Plusieurs dépassements simultanés produisent \textbf{une seule alerte} qui les liste tous~; elle est critique dès qu'un des problèmes l'est. Il faut distinguer une valeur \textbf{impossible} (hors des bornes de validation, par exemple une tension de 500)~: elle est refusée et rien n'est enregistré~; et une valeur \textbf{dangereuse} (par exemple 188 de tension)~: elle est enregistrée et déclenche une alerte.
+
+\subsection{Exigences non fonctionnelles}
+
+\begin{itemize}
+  \item \textbf{Confidentialité~:} aucune donnée n'est accessible sans session, et chaque rôle ne voit que ce qui le concerne.
+  \item \textbf{Temps réel~:} une alerte ou une invitation doit parvenir sans rechargement de la page.
+  \item \textbf{Reproductibilité~:} installation par une seule commande, tests rejouables sur une base temporaire.
+  \item \textbf{Utilisabilité~:} interface en français, utilisable sur ordinateur et sur mobile.
+  \item \textbf{Aucune donnée réelle~:} toutes les données sont fictives, conformément au cahier des charges.
+\end{itemize}
+
+\conclchap
+
+Le cadrage fixe un problème de soins concret, trois acteurs, douze besoins reliés chacun à une vérification, un périmètre assumé et des règles d'alerte explicites. Les spécifications retenues privilégient la sobriété technique. Le chapitre suivant en déduit l'architecture, le modèle de données, le parcours patient-médecin et les protocoles d'échange.

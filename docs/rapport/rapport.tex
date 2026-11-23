@@ -1,0 +1,62 @@
+% ============================================================================
+% Rapport de mini-projet : Santé digitale et ingénierie des systèmes de santé
+% « SahaLink : plateforme de téléconsultation avec suivi à distance »
+% Auteurs    : A. Issami, M. Ezbakhe, H. Benzahra, Z. Hsain, H. Kichchou, M. Hamdouch
+% Encadrante : Prof. Maria Zemzami (ENSAM Rabat)
+% ENSAM Rabat, filière INDIA&SD, année universitaire 2026/2027
+% Compilation : make   (ou : pdflatex, bibtex, pdflatex, pdflatex)
+% ============================================================================
+
+\documentclass[11pt,a4paper,openany]{report}
+
+\input{preamble.tex}
+
+\begin{document}
+
+\input{titlepage.tex}
+
+\pagenumbering{roman}
+
+\input{frontmatter/remerciements.tex}
+\clearpage
+\input{frontmatter/resume.tex}
+\clearpage
+
+\renewcommand{\contentsname}{Table des matières}
+\setcounter{tocdepth}{1}
+\tableofcontents
+\clearpage
+\listoffigures
+\clearpage
+\listoftables
+\clearpage
+\input{frontmatter/acronymes.tex}
+\clearpage
+
+\pagenumbering{arabic}
+\setcounter{page}{1}
+
+\input{chapters/00_introduction.tex}
+\input{chapters/01_etat_art.tex}
+\input{chapters/02_cadrage.tex}
+\input{chapters/03_conception.tex}
+\input{chapters/04_realisation.tex}
+\input{chapters/05_validation.tex}
+\input{chapters/06_securite.tex}
+\input{chapters/07_organisation.tex}
+\input{chapters/08_conclusion.tex}
+
+\clearpage
+\phantomsection
+\addcontentsline{toc}{chapter}{Bibliographie et webographie}
+\renewcommand{\bibname}{Bibliographie et webographie}
+\bibliographystyle{unsrt}
+\bibliography{references}
+
+\appendix
+\input{annexes/a_planning.tex}
+\input{annexes/b_tests.tex}
+\input{annexes/c_protocole.tex}
+\input{annexes/d_installation.tex}
+
+\end{document}
